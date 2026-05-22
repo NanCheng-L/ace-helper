@@ -64,7 +64,7 @@ onUnmounted(() => {
         <div class="badge" style="background:rgba(205,180,255,.45)">⏱️ 当前时间：<span>{{ clock }}</span></div>
       </div>
       <div style="margin-top:10px" class="hint" id="footerHint">
-        小提示：这是前端 UI 原型（含状态切换演示），后续接入真实进程检测时，只要把状态更新接口对上就行啦。
+        小提示：自动监听开启后，会每 3 秒检测一次进程状态，已优化的不会重复处理哦 ✦
       </div>
     </div>
   </section>

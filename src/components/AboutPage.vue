@@ -1,13 +1,86 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { check, type Update } from '@tauri-apps/plugin-updater'
+import { getVersion } from '@tauri-apps/api/app'
+
 const socialLinks = [
-  { iconType: 'github', label: 'GitHub', url: 'https://github.com/yourusername', desc: '查看源码，欢迎 Star' },
+  { iconType: 'github', label: 'GitHub', url: 'https://github.com/NanCheng-L/ace-helper', desc: '查看源码，欢迎 Star' },
   { iconType: 'bilibili', label: 'B站', url: 'https://space.bilibili.com/yourid', desc: '视频教程与更新动态' },
   { iconType: 'douyin', label: '抖音', url: 'https://www.douyin.com/user/yourid', desc: '短视频日常分享' }
 ]
 
+const appVersion = ref('0.1.0')
+const updateStatus = ref<'idle' | 'checking' | 'available' | 'no-update' | 'error' | 'downloading'>('idle')
+const updateMessage = ref('')
+const downloadProgress = ref(0)
+const availableUpdate = ref<Update | null>(null)
+
 const openLink = (url: string) => {
-  window.open(url, '_blank')
+  openUrl(url)
 }
+
+const checkUpdate = async () => {
+  updateStatus.value = 'checking'
+  updateMessage.value = '正在检查更新…'
+  downloadProgress.value = 0
+  availableUpdate.value = null
+
+  try {
+    const update = await check()
+    if (update) {
+      availableUpdate.value = update
+      updateStatus.value = 'available'
+      updateMessage.value = `发现新版本 ${update.version}，当前版本 ${update.currentVersion}`
+    } else {
+      updateStatus.value = 'no-update'
+      updateMessage.value = '已是最新版本，棒棒哒 ✦'
+    }
+  } catch (e) {
+    updateStatus.value = 'error'
+    updateMessage.value = '检查更新失败，请稍后再试 (´•̥ ̯ •̥`)'
+    console.error('[ACE Helper] 检查更新失败:', e)
+  }
+}
+
+const doUpdate = async () => {
+  if (updateStatus.value !== 'available' || !availableUpdate.value) return
+  updateStatus.value = 'downloading'
+  updateMessage.value = '正在下载更新…'
+
+  try {
+    const update = availableUpdate.value
+
+    let downloaded = 0
+    let contentLength = 0
+    await update.download((event) => {
+      switch (event.event) {
+        case 'Started':
+          contentLength = event.data.contentLength ?? 0
+          break
+        case 'Progress':
+          downloaded += event.data.chunkLength
+          if (contentLength > 0) {
+            downloadProgress.value = Math.round((downloaded / contentLength) * 100)
+          }
+          break
+        case 'Finished':
+          break
+      }
+    })
+
+    updateMessage.value = '下载完成，正在安装更新…'
+    await update.install()
+  } catch (e) {
+    updateStatus.value = 'error'
+    updateMessage.value = '下载更新失败 (´•̥ ̯ •̥`)'
+    console.error('[ACE Helper] 下载更新失败:', e)
+  }
+}
+
+getVersion().then(v => {
+  appVersion.value = v
+}).catch(() => {})
 </script>
 
 <template>
@@ -26,7 +99,7 @@ const openLink = (url: string) => {
         <img src="/src/assets/app-icon.png" alt="ACE 小助手" class="app-icon" />
         <div class="app-info">
           <h3>ACE 小助手</h3>
-          <p class="version">版本 1.0.0</p>
+          <p class="version">版本 {{ appVersion }}</p>
           <p class="desc">可爱又实用的 ACE 进程优化小工具</p>
           <p class="tagline">用蜡笔涂鸦风格，帮你管理 ACE 进程 ✦</p>
         </div>
@@ -68,6 +141,48 @@ const openLink = (url: string) => {
       </div>
     </section>
 
+    <!-- 检查更新 -->
+    <section class="about-section update-section">
+      <div class="section-title">
+        <span class="icon">🔄</span>
+        <span>检查更新</span>
+      </div>
+      <p class="section-desc">保持软件最新，获得更好的体验</p>
+      
+      <div class="update-area">
+        <div class="update-message" :class="updateStatus">
+          <span v-if="updateStatus === 'checking'">⏳</span>
+          <span v-else-if="updateStatus === 'available'">🎉</span>
+          <span v-else-if="updateStatus === 'no-update'">✅</span>
+          <span v-else-if="updateStatus === 'error'">😿</span>
+          <span v-else-if="updateStatus === 'downloading'">📥</span>
+          <span v-else>📦</span>
+          {{ updateMessage }}
+        </div>
+        <div v-if="updateStatus === 'downloading'" class="progress-bar-wrap">
+          <div class="progress-bar" :style="{ width: downloadProgress + '%' }"></div>
+          <span class="progress-text">{{ downloadProgress }}%</span>
+        </div>
+        <div class="update-buttons">
+          <button
+            v-if="updateStatus === 'available'"
+            class="update-btn"
+            @click="doUpdate"
+          >
+            📥 立即更新
+          </button>
+          <button
+            v-if="updateStatus !== 'downloading'"
+            class="update-btn check-btn"
+            :disabled="updateStatus === 'checking'"
+            @click="checkUpdate"
+          >
+            {{ updateStatus === 'checking' ? '⏳ 检查中…' : '🔍 检查更新' }}
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- 使用帮助 -->
     <section class="about-section">
       <div class="section-title">
@@ -104,7 +219,6 @@ const openLink = (url: string) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 4px;
 }
 
 .about-header {
@@ -285,6 +399,96 @@ const openLink = (url: string) => {
   font-size: 20px;
   font-weight: 900;
   color: var(--muted);
+}
+
+/* 检查更新 */
+.update-section {
+  background: linear-gradient(135deg, rgba(200,220,255,.3), rgba(255,255,255,.7));
+}
+
+.update-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.update-message {
+  padding: 10px 14px;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 13px;
+  background: rgba(255,255,255,.4);
+}
+
+.update-message.checking { border-color: rgba(255,200,100,.5); }
+.update-message.available { border-color: rgba(160,230,130,.6); background: rgba(185,251,192,.15); }
+.update-message.downloading { border-color: rgba(130,180,255,.6); background: rgba(180,210,255,.15); }
+.update-message.no-update { border-color: rgba(160,230,130,.4); }
+.update-message.error { border-color: rgba(255,150,150,.5); background: rgba(255,200,200,.12); }
+
+.progress-bar-wrap {
+  position: relative;
+  height: 22px;
+  border: 3px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255,255,255,.5);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(185,251,192,.8), rgba(130,200,255,.8));
+  border-radius: 999px;
+  transition: width .3s ease;
+}
+
+.progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 11px;
+}
+
+.update-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.update-btn {
+  border: 3px solid var(--line);
+  border-radius: 14px 12px 16px 14px;
+  padding: 10px 20px;
+  background: rgba(185,251,192,.8);
+  box-shadow: 0 6px 0 rgba(0,0,0,.06);
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+  user-select: none;
+}
+
+.update-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 rgba(0,0,0,.07);
+}
+
+.update-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 4px 0 rgba(0,0,0,.06);
+}
+
+.update-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.check-btn {
+  background: rgba(200,220,255,.8);
 }
 
 .help-list {

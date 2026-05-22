@@ -128,7 +128,7 @@ onMounted(() => {
 <template>
   <div class="settings-page">
     <div class="settings-header">
-      <div class="header-icon">🧰</div>
+      <div class="header-icon">🛠️</div>
       <div class="header-text">
         <h2>优化设置</h2>
         <p>配置进程监控和优化参数</p>

@@ -9,8 +9,8 @@ const emit = defineEmits<{
 
 const tabs = [
   { id: 'home', icon: '🏠', label: '首页', sub: 'NOW' },
-  { id: 'settings', icon: '🧰', label: '优化设置', sub: 'Soon' },
-  { id: 'appsettings', icon: '⚙️', label: '软件设置', sub: 'Soon' },
+  { id: 'settings', icon: '🛠️', label: '进程优化', sub: 'Soon' },
+  { id: 'appsettings', icon: '⚙️', label: '通用设置', sub: 'Soon' },
   { id: 'about', icon: '❓', label: '关于帮助', sub: 'Soon' }
 ]
 </script>

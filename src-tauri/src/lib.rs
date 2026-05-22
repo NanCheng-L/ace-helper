@@ -442,6 +442,8 @@ pub fn run() {
       tauri_plugin_autostart::MacosLauncher::LaunchAgent,
       None,
     ))
+    .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_updater::Builder::new().build())
     .setup(|app| {
       // 调试模式下启用日志插件
       if cfg!(debug_assertions) {
