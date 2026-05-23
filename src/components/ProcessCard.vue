@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { getPriorityLabel } from '../config/priority'
+import { ShieldIcon, PawIcon, TrayIcon, AppIcon } from './icons'
 
 export interface ProcessData {
   name: string
@@ -22,6 +23,22 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'toggle'): void
 }>()
+
+// 根据进程名称获取对应的图标组件
+const getProcessIcon = (name: string) => {
+  switch (name) {
+    case 'SGuardSvc64.exe':
+      return ShieldIcon
+    case 'SGuard64.exe':
+      return PawIcon
+    case 'ACE-Tray.exe':
+      return TrayIcon
+    case 'ace-helper.exe':
+      return AppIcon
+    default:
+      return ShieldIcon
+  }
+}
 
 const stateText: Record<string, string> = {
   offline: '离线',
@@ -70,7 +87,9 @@ const handleClick = () => {
   <article :class="cardClasses" @click="handleClick">
     <div class="tape" aria-hidden="true"></div>
     <div class="cardhead">
-      <div class="proc-icon" aria-hidden="true">{{ process.doodle }}</div>
+      <div class="proc-icon" aria-hidden="true">
+        <component :is="getProcessIcon(process.name)" :size="20" />
+      </div>
       <div class="proc-title">
         <div class="name">{{ process.name }}</div>
         <div class="desc">{{ descriptions[process.state] }}</div>

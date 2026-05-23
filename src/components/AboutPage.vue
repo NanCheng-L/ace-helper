@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { getVersion } from '@tauri-apps/api/app'
+import { HelpIcon, LinkIcon, RefreshIcon, DownloadIcon, SearchIcon, LightbulbIcon, CheckIcon, PackageIcon, LoaderIcon, PartyIcon, CatIcon } from './icons'
 
 const socialLinks = [
   { iconType: 'github', label: 'GitHub', url: 'https://github.com/NanCheng-L/ace-helper', desc: '查看源码，欢迎 Star' },
@@ -11,10 +12,10 @@ const socialLinks = [
 ]
 
 const appVersion = ref('0.1.0')
-const updateStatus = ref<'idle' | 'checking' | 'available' | 'no-update' | 'error' | 'downloading'>('idle')
+const updateStatus = ref<'idle' | 'checking' | 'available' | 'no-update' | 'error' | 'download-error' | 'downloading'>('idle')
 const updateMessage = ref('')
 const downloadProgress = ref(0)
-const availableUpdate = ref<Update | null>(null)
+let availableUpdate: Update | null = null
 
 const openLink = (url: string) => {
   openUrl(url)
@@ -24,12 +25,12 @@ const checkUpdate = async () => {
   updateStatus.value = 'checking'
   updateMessage.value = '正在检查更新…'
   downloadProgress.value = 0
-  availableUpdate.value = null
+  availableUpdate = null
 
   try {
     const update = await check()
     if (update) {
-      availableUpdate.value = update
+      availableUpdate = update
       updateStatus.value = 'available'
       updateMessage.value = `发现新版本 ${update.version}，当前版本 ${update.currentVersion}`
     } else {
@@ -44,12 +45,12 @@ const checkUpdate = async () => {
 }
 
 const doUpdate = async () => {
-  if (updateStatus.value !== 'available' || !availableUpdate.value) return
+  if (updateStatus.value !== 'available' || !availableUpdate) return
   updateStatus.value = 'downloading'
   updateMessage.value = '正在下载更新…'
 
   try {
-    const update = availableUpdate.value
+    const update = availableUpdate
 
     let downloaded = 0
     let contentLength = 0
@@ -71,9 +72,10 @@ const doUpdate = async () => {
 
     updateMessage.value = '下载完成，正在安装更新…'
     await update.install()
-  } catch (e) {
-    updateStatus.value = 'error'
-    updateMessage.value = '下载更新失败 (´•̥ ̯ •̥`)'
+  } catch (e: any) {
+    updateStatus.value = 'download-error'
+    const errMsg = e?.message || e?.toString() || '未知错误'
+    updateMessage.value = `下载更新失败：${errMsg}`
     console.error('[ACE Helper] 下载更新失败:', e)
   }
 }
@@ -86,7 +88,9 @@ getVersion().then(v => {
 <template>
   <div class="about-page">
     <div class="about-header">
-      <div class="header-icon">❓</div>
+      <div class="header-icon">
+        <HelpIcon :size="24" />
+      </div>
       <div class="header-text">
         <h2>关于与帮助</h2>
         <p>有问题或建议？来找我吧！</p>
@@ -109,7 +113,7 @@ getVersion().then(v => {
     <!-- 社交链接 -->
     <section class="about-section">
       <div class="section-title">
-        <span class="icon">🔗</span>
+        <LinkIcon :size="18" />
         <span>找到我</span>
       </div>
       <p class="section-desc">点击下面的链接找到我</p>
@@ -144,20 +148,32 @@ getVersion().then(v => {
     <!-- 检查更新 -->
     <section class="about-section update-section">
       <div class="section-title">
-        <span class="icon">🔄</span>
+        <RefreshIcon :size="18" />
         <span>检查更新</span>
       </div>
       <p class="section-desc">保持软件最新，获得更好的体验</p>
       
       <div class="update-area">
         <div class="update-message" :class="updateStatus">
-          <span v-if="updateStatus === 'checking'">⏳</span>
-          <span v-else-if="updateStatus === 'available'">🎉</span>
-          <span v-else-if="updateStatus === 'no-update'">✅</span>
-          <span v-else-if="updateStatus === 'error'">😿</span>
-          <span v-else-if="updateStatus === 'downloading'">📥</span>
-          <span v-else>📦</span>
-          {{ updateMessage }}
+          <span v-if="updateStatus === 'checking'" class="message-icon">
+            <LoaderIcon :size="16" />
+          </span>
+          <span v-else-if="updateStatus === 'available'" class="message-icon">
+            <PartyIcon :size="16" />
+          </span>
+          <span v-else-if="updateStatus === 'no-update'" class="message-icon">
+            <CheckIcon :size="16" />
+          </span>
+          <span v-else-if="updateStatus === 'error' || updateStatus === 'download-error'" class="message-icon">
+            <CatIcon :size="16" />
+          </span>
+          <span v-else-if="updateStatus === 'downloading'" class="message-icon">
+            <DownloadIcon :size="16" />
+          </span>
+          <span v-else class="message-icon">
+            <PackageIcon :size="16" />
+          </span>
+          {{ updateMessage || '点击检查更新按钮查看是否有新版本' }}
         </div>
         <div v-if="updateStatus === 'downloading'" class="progress-bar-wrap">
           <div class="progress-bar" :style="{ width: downloadProgress + '%' }"></div>
@@ -165,11 +181,14 @@ getVersion().then(v => {
         </div>
         <div class="update-buttons">
           <button
-            v-if="updateStatus === 'available'"
+            v-if="updateStatus === 'available' || updateStatus === 'download-error'"
             class="update-btn"
             @click="doUpdate"
           >
-            📥 立即更新
+            <span class="btn-content">
+              <DownloadIcon :size="16" />
+              <span>立即更新</span>
+            </span>
           </button>
           <button
             v-if="updateStatus !== 'downloading'"
@@ -177,7 +196,14 @@ getVersion().then(v => {
             :disabled="updateStatus === 'checking'"
             @click="checkUpdate"
           >
-            {{ updateStatus === 'checking' ? '⏳ 检查中…' : '🔍 检查更新' }}
+            <span v-if="updateStatus === 'checking'" class="btn-content">
+              <LoaderIcon :size="16" />
+              <span>检查中…</span>
+            </span>
+            <span v-else class="btn-content">
+              <SearchIcon :size="16" />
+              <span>检查更新</span>
+            </span>
           </button>
         </div>
       </div>
@@ -186,7 +212,7 @@ getVersion().then(v => {
     <!-- 使用帮助 -->
     <section class="about-section">
       <div class="section-title">
-        <span class="icon">💡</span>
+        <LightbulbIcon :size="18" />
         <span>使用帮助</span>
       </div>
       
@@ -208,7 +234,7 @@ getVersion().then(v => {
 
     <!-- 底部信息 -->
     <div class="about-footer">
-      <p>Made with 💖 and lots of ☕</p>
+      <p>Made with love and lots of coffee</p>
       <p class="copyright">© 2026 ACE 小助手 · 蜡笔涂鸦风格</p>
     </div>
   </div>
@@ -239,8 +265,8 @@ getVersion().then(v => {
   background: rgba(255,255,255,.6);
   display: grid;
   place-items: center;
-  font-size: 24px;
   box-shadow: 0 8px 0 rgba(0,0,0,.06);
+  color: var(--ink);
 }
 
 .header-text h2 {
@@ -317,10 +343,7 @@ getVersion().then(v => {
   font-size: 16px;
   font-weight: 900;
   margin-bottom: 6px;
-}
-
-.section-title .icon {
-  font-size: 18px;
+  color: var(--ink);
 }
 
 .section-desc {
@@ -419,6 +442,14 @@ getVersion().then(v => {
   font-weight: 700;
   font-size: 13px;
   background: rgba(255,255,255,.4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-icon {
+  display: flex;
+  align-items: center;
 }
 
 .update-message.checking { border-color: rgba(255,200,100,.5); }
@@ -426,6 +457,7 @@ getVersion().then(v => {
 .update-message.downloading { border-color: rgba(130,180,255,.6); background: rgba(180,210,255,.15); }
 .update-message.no-update { border-color: rgba(160,230,130,.4); }
 .update-message.error { border-color: rgba(255,150,150,.5); background: rgba(255,200,200,.12); }
+.update-message.download-error { border-color: rgba(255,150,150,.5); background: rgba(255,200,200,.12); }
 
 .progress-bar-wrap {
   position: relative;
@@ -469,6 +501,7 @@ getVersion().then(v => {
   cursor: pointer;
   transition: transform .12s ease, box-shadow .12s ease;
   user-select: none;
+  color: var(--ink);
 }
 
 .update-btn:hover {
@@ -489,6 +522,12 @@ getVersion().then(v => {
 
 .check-btn {
   background: rgba(200,220,255,.8);
+}
+
+.btn-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .help-list {

@@ -1,33 +1,30 @@
 import { ref, onUnmounted } from 'vue'
-
-const APP_SETTINGS_KEY = 'ace-app-settings'
+import { loadConfig, updateAppSettings } from '../utils/configStorage'
 
 export function useAutoMonitor() {
-  const isAutoMonitoring = ref(true)
+  // autoStartMonitor: 持久化设置，控制"启动时是否自动开启监听"
+  const autoStartMonitor = ref(true)
+  // isAutoMonitoring: 当前会话的临时状态
+  const isAutoMonitoring = ref(false)
   let autoMonitorTimer: ReturnType<typeof setTimeout> | null = null
 
-  // 加载自动监听设置
-  const loadAutoMonitorSetting = () => {
+  // 加载自动监听设置（从配置文件读取 autoStartMonitor）
+  const loadAutoMonitorSetting = async () => {
     try {
-      const saved = localStorage.getItem(APP_SETTINGS_KEY)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (typeof parsed.autoMonitor === 'boolean') {
-          isAutoMonitoring.value = parsed.autoMonitor
-        }
+      const config = await loadConfig()
+      if (typeof config.appSettings?.autoMonitor === 'boolean') {
+        autoStartMonitor.value = config.appSettings.autoMonitor
       }
     } catch (e) {
       // 忽略
     }
   }
 
-  // 保存自动监听设置
-  const saveAutoMonitorSetting = (val: boolean) => {
+  // 保存自动监听设置（保存到配置文件的 autoStartMonitor）
+  const saveAutoMonitorSetting = async (val: boolean) => {
     try {
-      const saved = localStorage.getItem(APP_SETTINGS_KEY)
-      const parsed = saved ? JSON.parse(saved) : {}
-      parsed.autoMonitor = val
-      localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(parsed))
+      await updateAppSettings({ autoMonitor: val })
+      autoStartMonitor.value = val
     } catch (e) {
       // 忽略
     }
@@ -49,7 +46,7 @@ export function useAutoMonitor() {
     }
   }
 
-  // 切换自动监听模式
+  // 切换当前会话的自动监听状态（不影响持久化设置）
   const toggleAutoMonitor = (
     onStart: () => void,
     onStop: () => void
@@ -57,11 +54,17 @@ export function useAutoMonitor() {
     if (isAutoMonitoring.value) {
       stopAutoMonitor()
       isAutoMonitoring.value = false
-      saveAutoMonitorSetting(false)
       onStop()
     } else {
       isAutoMonitoring.value = true
-      saveAutoMonitorSetting(true)
+      onStart()
+    }
+  }
+
+  // 根据持久化设置启动自动监听（仅在应用启动时调用）
+  const startAutoMonitorIfEnabled = (onStart: () => void) => {
+    if (autoStartMonitor.value) {
+      isAutoMonitoring.value = true
       onStart()
     }
   }
@@ -72,11 +75,13 @@ export function useAutoMonitor() {
   })
 
   return {
+    autoStartMonitor,
     isAutoMonitoring,
     loadAutoMonitorSetting,
     saveAutoMonitorSetting,
     startAutoMonitor,
     stopAutoMonitor,
-    toggleAutoMonitor
+    toggleAutoMonitor,
+    startAutoMonitorIfEnabled
   }
 }

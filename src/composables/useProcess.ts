@@ -92,6 +92,8 @@ export function useProcess() {
       const status = realStatuses.find(s => s.name === p.name)
       if (!status) continue
 
+      checkedCount.value++
+
       const frontendState = backendToFrontendState(status.state)
       processStates.value[p.name] = frontendState
       processDetails.value[p.name] = {
@@ -121,7 +123,7 @@ export function useProcess() {
         }
       } else if (status.state === 3) {
         result.failedCount++
-        logMessage = `${p.name}：优化失败（请看日志）`
+        logMessage = `${p.name}：优化失败${status.hint ? ` — ${status.hint}` : '（权限不足或被保护）'}`
       } else if (status.state === 2) {
         logMessage = `${p.name}：当前在线`
       }
@@ -139,6 +141,8 @@ export function useProcess() {
     const results: Array<{ name: string; info: string; isOnline: boolean }> = []
 
     for (const status of realStatuses) {
+      checkedCount.value++
+
       processDetails.value[status.name] = {
         lastUpdated: status.updatedAt.split(' ')[1] || '',
         priority: status.priority,

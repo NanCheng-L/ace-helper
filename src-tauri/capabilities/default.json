@@ -8,6 +8,15 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "updater:default"
+    "updater:default",
+    "fs:default",
+    "fs:allow-appdata-read",
+    "fs:allow-appdata-write",
+    "fs:allow-appdata-read-recursive",
+    "fs:allow-appdata-write-recursive",
+    "notification:default",
+    "notification:allow-is-permission-granted",
+    "notification:allow-request-permission",
+    "notification:allow-notify"
   ]
 }

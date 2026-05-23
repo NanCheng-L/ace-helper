@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import TopBar from '../../components/TopBar.vue'
 import ProcessCard from '../../components/ProcessCard.vue'
 import LogSection from '../../components/LogSection.vue'
+import { SettingsIcon } from '../../components/icons'
 import type { ProcessData } from '../../components/ProcessCard.vue'
 import type { ProcessListItem } from '../../types'
 
@@ -75,7 +76,9 @@ const handleToggleCard = (index: number) => {
     <section class="grid" aria-label="进程卡片">
       <!-- 没有启用任何进程时的提示 -->
       <div v-if="!hasEnabledProcesses" class="empty-tip" @click="emit('goToSettings')">
-        <div class="empty-tip-icon">⚙️</div>
+        <div class="empty-tip-icon">
+          <SettingsIcon :size="48" />
+        </div>
         <div class="empty-tip-text">还没有勾选要优化的进程哦</div>
         <div class="empty-tip-sub">点击这里 → 去设置里勾选进程</div>
       </div>
@@ -160,8 +163,8 @@ const handleToggleCard = (index: number) => {
 }
 
 .empty-tip-icon {
-  font-size: 48px;
   margin-bottom: 12px;
+  color: #f59e0b;
 }
 
 .empty-tip-text {

@@ -1,0 +1,64 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "ACE Helper",
+  "version": "0.1.0",
+  "identifier": "com.ace-helper.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "ACE 小助手",
+        "width": 1000,
+        "height": 750,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "visible": false,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": false,
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    },
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "languages": ["SimpChinese"],
+        "installerHooks": "./nsis/hooks.nsi"
+      },
+      "wix": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["http://localhost:3000/latest.json"],
+      "dangerousInsecureTransportProtocol": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIyQkUwQjQ4ODE5RjEzNDMKUldSREU1K0JTQXUrc2l0cG93b1FqNk1sZHpBWGVod1FEUy9tWVRTaEpqc2g2RWJubklqaHZaRlkK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

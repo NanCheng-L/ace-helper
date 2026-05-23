@@ -1,0 +1,11 @@
+{
+  "version": "0.99.0",
+  "notes": "这是一个本地测试更新\n- 测试更新检测功能\n- 无需发布到 GitHub",
+  "pub_date": "2026-05-23T08:05:46.409Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW1teS1zaWduYXR1cmUtZm9yLXRlc3Rpbmc=",
+      "url": "http://localhost:3000/test-update.exe"
+    }
+  }
+}

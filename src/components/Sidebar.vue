@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { HomeIcon, ToolsIcon, SettingsIcon, HelpIcon } from './icons'
+
 defineProps<{
   activeTab: string
 }>()
@@ -8,10 +10,10 @@ const emit = defineEmits<{
 }>()
 
 const tabs = [
-  { id: 'home', icon: '🏠', label: '首页', sub: 'NOW' },
-  { id: 'settings', icon: '🛠️', label: '进程优化', sub: 'Soon' },
-  { id: 'appsettings', icon: '⚙️', label: '通用设置', sub: 'Soon' },
-  { id: 'about', icon: '❓', label: '关于帮助', sub: 'Soon' }
+  { id: 'home', icon: HomeIcon, label: '首页', sub: 'NOW' },
+  { id: 'settings', icon: ToolsIcon, label: '进程优化', sub: 'Soon' },
+  { id: 'appsettings', icon: SettingsIcon, label: '通用设置', sub: 'Soon' },
+  { id: 'about', icon: HelpIcon, label: '关于帮助', sub: 'Soon' }
 ]
 </script>
 
@@ -23,7 +25,7 @@ const tabs = [
       </div>
       <div class="title">
         <b>ACE 小助手</b>
-        <small>蜡笔涂鸦 · 可爱但混乱</small>
+        <small>别慌，有我在呢 ✦</small>
       </div>
     </div>
 
@@ -36,7 +38,9 @@ const tabs = [
         :style="{ '--rot': tab.id === 'home' ? '-1.6deg' : tab.id === 'settings' ? '1.2deg' : tab.id === 'appsettings' ? '-0.8deg' : '0.6deg' }"
         @click="emit('select', tab.id)"
       >
-        <div class="ico">{{ tab.icon }}</div>
+        <div class="ico">
+          <component :is="tab.icon" :size="16" />
+        </div>
         <div class="txt">{{ tab.label }}</div>
         <div class="sub">{{ activeTab === tab.id ? 'NOW' : 'Soon' }}</div>
       </div>

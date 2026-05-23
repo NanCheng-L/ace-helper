@@ -1,27 +1,36 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
+import { SettingsIcon, SaveIcon, CheckIcon, RocketIcon, WindowIcon, SearchIcon, BellIcon } from './icons'
+import { loadConfig, updateAppSettings } from '../utils/configStorage'
 
 interface AppSettings {
   autoStart: boolean
   minimizeToTray: boolean
-  startMinimized: boolean
   autoMonitor: boolean
+  enableNotifications: boolean
 }
 
 const settings = ref<AppSettings>({
-  autoStart: false,
-  minimizeToTray: false,
-  startMinimized: false,
-  autoMonitor: true
+  autoStart: true,
+  minimizeToTray: true,
+  autoMonitor: true,
+  enableNotifications: true
 })
 
 const saveStatus = ref<'idle' | 'saved'>('idle')
 
-const loadSettings = () => {
+const loadSettings = async () => {
   try {
-    const saved = localStorage.getItem('ace-app-settings')
-    if (saved) {
-      settings.value = JSON.parse(saved)
+    const config = await loadConfig()
+    if (config.appSettings) {
+      settings.value = {
+        autoStart: config.appSettings.autoStart ?? true,
+        minimizeToTray: config.appSettings.minimizeToTray ?? true,
+        autoMonitor: config.appSettings.autoMonitor ?? true,
+        enableNotifications: config.appSettings.enableNotifications ?? true
+      }
     }
   } catch (e) {
     console.error('[ACE Helper] 加载软件设置失败:', e)
@@ -30,13 +39,27 @@ const loadSettings = () => {
 
 const saveSettings = async () => {
   try {
-    localStorage.setItem('ace-app-settings', JSON.stringify(settings.value))
-    
+    await updateAppSettings({
+      autoStart: settings.value.autoStart,
+      minimizeToTray: settings.value.minimizeToTray,
+      autoMonitor: settings.value.autoMonitor,
+      enableNotifications: settings.value.enableNotifications
+    })
+
+    if (settings.value.enableNotifications) {
+      try {
+        const granted = await isPermissionGranted()
+        if (!granted) {
+          await requestPermission()
+        }
+      } catch {}
+    }
+
     // 尝试设置开机自启动
     try {
       const { isEnabled, enable, disable } = await import('@tauri-apps/plugin-autostart')
       const enabled = await isEnabled()
-      
+
       if (settings.value.autoStart && !enabled) {
         await enable()
       } else if (!settings.value.autoStart && enabled) {
@@ -45,7 +68,9 @@ const saveSettings = async () => {
     } catch (e) {
       console.log('[ACE Helper] 自动启动功能暂不可用:', e)
     }
-    
+
+    invoke('set_minimize_to_tray', { value: settings.value.minimizeToTray }).catch(() => {})
+
     saveStatus.value = 'saved'
     setTimeout(() => {
       saveStatus.value = 'idle'
@@ -56,15 +81,18 @@ const saveSettings = async () => {
   }
 }
 
-onMounted(() => {
-  loadSettings()
+onMounted(async () => {
+  await loadSettings()
+  invoke('set_minimize_to_tray', { value: settings.value.minimizeToTray }).catch(() => {})
 })
 </script>
 
 <template>
   <div class="app-settings-page">
     <div class="settings-header">
-      <div class="header-icon">⚙️</div>
+      <div class="header-icon">
+        <SettingsIcon :size="24" />
+      </div>
       <div class="header-text">
         <h2>软件设置</h2>
         <p>配置软件的运行方式</p>
@@ -75,15 +103,21 @@ onMounted(() => {
         :class="{ saved: saveStatus === 'saved' }"
         @click="saveSettings"
       >
-        <span v-if="saveStatus === 'idle'">💾 保存</span>
-        <span v-else>✅ 已保存</span>
+        <span v-if="saveStatus === 'idle'" class="btn-content">
+          <SaveIcon :size="16" />
+          <span>保存</span>
+        </span>
+        <span v-else class="btn-content">
+          <CheckIcon :size="16" />
+          <span>已保存</span>
+        </span>
       </button>
     </div>
 
     <!-- 启动设置 -->
     <section class="settings-section">
       <div class="section-title">
-        <span class="icon">🚀</span>
+        <RocketIcon :size="18" />
         <span>启动设置</span>
       </div>
       <p class="section-desc">软件启动时的行为</p>
@@ -92,26 +126,12 @@ onMounted(() => {
         <label class="setting-item">
           <div class="setting-info">
             <span class="setting-label">开机自动启动</span>
-            <span class="setting-desc">电脑开机时自动运行软件</span>
+            <span class="setting-desc">电脑开机时自动运行软件（静默进入系统托盘）</span>
           </div>
           <div class="toggle-switch" :class="{ active: settings.autoStart }">
             <input 
               type="checkbox" 
               v-model="settings.autoStart"
-            />
-            <span class="toggle-slider"></span>
-          </div>
-        </label>
-
-        <label class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">启动时最小化</span>
-            <span class="setting-desc">启动后最小化到系统托盘</span>
-          </div>
-          <div class="toggle-switch" :class="{ active: settings.startMinimized }">
-            <input 
-              type="checkbox" 
-              v-model="settings.startMinimized"
             />
             <span class="toggle-slider"></span>
           </div>
@@ -122,7 +142,7 @@ onMounted(() => {
     <!-- 窗口设置 -->
     <section class="settings-section">
       <div class="section-title">
-        <span class="icon">🪟</span>
+        <WindowIcon :size="18" />
         <span>窗口设置</span>
       </div>
       <p class="section-desc">窗口关闭和显示行为</p>
@@ -147,20 +167,20 @@ onMounted(() => {
     <!-- 进程监控 -->
     <section class="settings-section">
       <div class="section-title">
-        <span class="icon">🔍</span>
+        <SearchIcon :size="18" />
         <span>进程监控</span>
       </div>
-      <p class="section-desc">自动检测和优化 ACE 进程</p>
-      
+      <p class="section-desc">软件启动时的自动监听行为</p>
+
       <div class="setting-list">
         <label class="setting-item">
           <div class="setting-info">
-            <span class="setting-label">自动监听进程</span>
-            <span class="setting-desc">每 3 秒自动检测进程状态并优化</span>
+            <span class="setting-label">启动时自动监听</span>
+            <span class="setting-desc">软件打开后自动开始监听进程（首页可临时关闭）</span>
           </div>
           <div class="toggle-switch" :class="{ active: settings.autoMonitor }">
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               v-model="settings.autoMonitor"
             />
             <span class="toggle-slider"></span>
@@ -169,17 +189,31 @@ onMounted(() => {
       </div>
     </section>
 
-    <!-- 关于软件 -->
-    <section class="settings-section about-section">
-      <div class="about-card">
-        <img src="/src/assets/app-icon.png" alt="ACE 小助手" class="about-icon" />
-        <div class="about-info">
-          <h3>ACE 小助手</h3>
-          <p class="version">版本 1.0.0</p>
-          <p class="desc">可爱又实用的 ACE 进程优化小工具</p>
-        </div>
+    <!-- 通知设置 -->
+    <section class="settings-section">
+      <div class="section-title">
+        <BellIcon :size="18" />
+        <span>通知设置</span>
+      </div>
+      <p class="section-desc">优化完成后的系统通知</p>
+      
+      <div class="setting-list">
+        <label class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">系统通知</span>
+            <span class="setting-desc">进程优化成功时在右下角弹出通知提醒</span>
+          </div>
+          <div class="toggle-switch" :class="{ active: settings.enableNotifications }">
+            <input 
+              type="checkbox" 
+              v-model="settings.enableNotifications"
+            />
+            <span class="toggle-slider"></span>
+          </div>
+        </label>
       </div>
     </section>
+
   </div>
 </template>
 
@@ -209,8 +243,8 @@ onMounted(() => {
   background: rgba(255,255,255,.6);
   display: grid;
   place-items: center;
-  font-size: 24px;
   box-shadow: 0 8px 0 rgba(0,0,0,.06);
+  color: var(--ink);
 }
 
 .header-text h2 {
@@ -231,6 +265,12 @@ onMounted(() => {
   flex: 1;
 }
 
+.btn-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .save-btn {
   border: 3px solid var(--line);
   border-radius: 16px 18px 14px 20px;
@@ -242,6 +282,7 @@ onMounted(() => {
   cursor: pointer;
   transition: transform .12s ease, box-shadow .12s ease, background .2s ease;
   user-select: none;
+  color: var(--ink);
 }
 
 .save-btn:hover {
@@ -273,10 +314,7 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 900;
   margin-bottom: 6px;
-}
-
-.section-title .icon {
-  font-size: 18px;
+  color: var(--ink);
 }
 
 .section-desc {
@@ -371,45 +409,5 @@ onMounted(() => {
 
 .toggle-switch.active .toggle-slider:before {
   transform: translateX(24px);
-}
-
-/* About Section */
-.about-section {
-  background: linear-gradient(135deg, rgba(255,230,109,.3), rgba(255,255,255,.7));
-}
-
-.about-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 10px;
-}
-
-.about-icon {
-  width: 64px;
-  height: 64px;
-  border: 3px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255,255,255,.8);
-}
-
-.about-info h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.about-info .version {
-  margin: 4px 0;
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 700;
-}
-
-.about-info .desc {
-  margin: 0;
-  font-size: 13px;
-  color: var(--ink);
-  font-weight: 700;
 }
 </style>

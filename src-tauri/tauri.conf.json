@@ -1,10 +1,10 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "ACE 小助手",
+  "productName": "ACE Helper",
   "version": "0.1.0",
   "identifier": "com.ace-helper.app",
   "build": {
-    "frontendDist": "dist",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
@@ -13,21 +13,24 @@
     "windows": [
       {
         "title": "ACE 小助手",
-        "width": 1230,
-        "height": 800,
+        "width": 1000,
+        "height": 750,
         "minWidth": 800,
         "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "visible": false,
+        "decorations": true
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -35,17 +38,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
     "android": {
       "debugApplicationIdSuffix": ".debug"
     },
     "windows": {
       "nsis": {
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "icons/icon.ico",
+        "languages": ["SimpChinese"],
+        "installerHooks": "./nsis/hooks.nsi"
       },
-      "wix": {
-        "language": "zh-CN"
-      }
+      "wix": null
     }
   },
   "plugins": {

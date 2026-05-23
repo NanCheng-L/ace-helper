@@ -1,0 +1,11 @@
+{
+  "version": "0.2.0",
+  "notes": "修复已知问题，优化用户体验",
+  "pub_date": "2024-01-15T00:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "使用私钥签名后填入此处",
+      "url": "https://github.com/NanCheng-L/ace-helper/releases/download/v0.2.0/ACE小助手_0.2.0_x64-setup.exe"
+    }
+  }
+}

@@ -147,8 +147,22 @@ body{
   border:3px solid var(--line);
   border-radius: 10px 14px 12px 16px;
   display:grid; place-items:center;
-  background: rgba(169,214,255,.55);
   font-size:14px;
+  box-shadow: 0 4px 0 rgba(0,0,0,.06);
+}
+
+/* 不同菜单的图标背景色 */
+.tab:nth-child(1) .ico{
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(255,200,100,.4));
+}
+.tab:nth-child(2) .ico{
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(255,150,150,.4));
+}
+.tab:nth-child(3) .ico{
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(150,200,255,.4));
+}
+.tab:nth-child(4) .ico{
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(185,251,192,.4));
 }
 .tab .txt{ font-weight:700; }
 .tab .sub{ margin-left:auto; font-size:12px; color:var(--muted); font-weight:600; }
@@ -301,11 +315,24 @@ body{
   width:46px;height:46px;
   border:3px solid var(--line);
   border-radius: 14px 18px 12px 20px;
-  background: radial-gradient(circle at 30% 30%, #fff, rgba(255,255,255,.2));
   display:grid; place-items:center;
   font-size:22px;
   box-shadow: 0 8px 0 rgba(0,0,0,.06);
   transform: rotate(-2deg);
+}
+
+/* 不同进程的图标背景色 - 与进程配置保持一致 */
+.card:nth-child(1) .proc-icon{
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(255,200,100,.3));
+}
+.card:nth-child(2) .proc-icon{
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(255,150,150,.3));
+}
+.card:nth-child(3) .proc-icon{
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(150,200,255,.3));
+}
+.card:nth-child(4) .proc-icon{
+  background: radial-gradient(circle at 30% 30%, #fff, rgba(185,251,192,.3));
 }
 .proc-title{
   flex:1;

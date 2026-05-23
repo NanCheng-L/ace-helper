@@ -4,10 +4,21 @@ use serde::{Serialize, Deserialize};
 // sysinfo: 用于获取系统信息和进程状态
 use sysinfo::System;
 // winapi: Windows API，用于操作进程优先级和 CPU 亲和性
-use winapi::um::processthreadsapi::{OpenProcess, GetPriorityClass, SetPriorityClass};
-use winapi::um::winbase::{GetProcessAffinityMask, SetProcessAffinityMask};
-use winapi::um::winnt::{PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_INFORMATION};
+use winapi::um::processthreadsapi::{OpenProcess, GetPriorityClass, SetPriorityClass, GetCurrentProcess, OpenProcessToken};
+use winapi::um::winbase::{GetProcessAffinityMask, SetProcessAffinityMask, LookupPrivilegeValueW};
+use winapi::um::winnt::{PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_INFORMATION, PROCESS_QUERY_INFORMATION, TOKEN_ADJUST_PRIVILEGES, TOKEN_QUERY, SE_PRIVILEGE_ENABLED};
 use winapi::um::handleapi::CloseHandle;
+use winapi::um::securitybaseapi::AdjustTokenPrivileges;
+// Tauri 系统托盘
+use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::Manager;
+use tauri::Emitter;
+use tauri_plugin_notification::NotificationExt;
+use std::sync::{Mutex, Once};
+use std::ptr;
+use std::process::Command;
+use std::os::windows::process::CommandExt;
 
 // 进程状态枚举
 // 1: 离线, 2: 在线, 3: 优化失败, 4: 已优化
@@ -75,6 +86,54 @@ fn get_current_time_str() -> String {
   format!("{}", time.format("%Y-%m-%d %H:%M:%S"))
 }
 
+// 全局 Once 确保 SeDebugPrivilege 只启用一次
+static SE_DEBUG_ONCE: Once = Once::new();
+
+// 启用 SeDebugPrivilege（允许访问受保护进程）
+fn enable_se_debug_privilege() -> bool {
+    unsafe {
+        let mut token_handle: *mut winapi::ctypes::c_void = ptr::null_mut();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &mut token_handle) == 0 {
+            return false;
+        }
+
+        let mut luid: winapi::um::winnt::LUID = std::mem::zeroed();
+        let privilege_name: Vec<u16> = "SeDebugPrivilege\0".encode_utf16().collect();
+        if LookupPrivilegeValueW(ptr::null(), privilege_name.as_ptr(), &mut luid) == 0 {
+            CloseHandle(token_handle);
+            return false;
+        }
+
+        let mut tp: winapi::um::winnt::TOKEN_PRIVILEGES = std::mem::zeroed();
+        tp.PrivilegeCount = 1;
+        tp.Privileges[0].Luid = luid;
+        tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+        let result = AdjustTokenPrivileges(
+            token_handle,
+            0,
+            &mut tp,
+            std::mem::size_of::<winapi::um::winnt::TOKEN_PRIVILEGES>() as u32,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+
+        CloseHandle(token_handle);
+        result != 0
+    }
+}
+
+// 确保 SeDebugPrivilege 已启用（全局仅执行一次）
+fn ensure_se_debug_privilege() {
+    SE_DEBUG_ONCE.call_once(|| {
+        if enable_se_debug_privilege() {
+            println!("[ACE Helper] SeDebugPrivilege enabled");
+        } else {
+            eprintln!("[ACE Helper] Warning: failed to enable SeDebugPrivilege");
+        }
+    });
+}
+
 // 将 Windows 优先级代码转为中文显示
 fn get_priority_name(priority_class: u32) -> &'static str {
   match priority_class {
@@ -117,9 +176,19 @@ fn get_priority_key(priority_class: u32) -> &'static str {
 // 参数: pid 进程 ID
 // 返回: (优先级, CPU 亲和性, 使用核心数)
 fn get_process_info(pid: u32) -> (Option<String>, Option<String>, Option<String>, Option<u32>) {
-  // 打开进程句柄，使用 PROCESS_QUERY_LIMITED_INFORMATION 权限（安全且够用）
+  // 确保已启用 SeDebugPrivilege
+  ensure_se_debug_privilege();
+  
+  // 尝试使用更高权限打开进程
   let handle = unsafe {
-    OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+    // 先尝试 PROCESS_QUERY_INFORMATION（更高权限）
+    let h = OpenProcess(PROCESS_QUERY_INFORMATION, 0, pid);
+    if h.is_null() {
+      // 降级到 PROCESS_QUERY_LIMITED_INFORMATION
+      OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+    } else {
+      h
+    }
   };
   
   // 检查句柄是否有效
@@ -201,19 +270,30 @@ fn check_process_running(sys: &System, name: &str) -> Option<(u32, Option<String
 // 优化进程（设置优先级和 CPU 亲和性）
 // 参数: pid 进程 ID, priority_name 优先级名称, affinity_cores CPU 核心列表
 // 返回: 是否成功
-fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> bool {
-  // 打开进程句柄，需要 PROCESS_SET_INFORMATION 权限来修改进程设置
+fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> (bool, String) {
+  // 确保已启用 SeDebugPrivilege
+  ensure_se_debug_privilege();
+  
+  // 尝试使用更高权限打开进程
   let handle = unsafe {
-    OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+    // 先尝试 PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION
+    let h = OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION, 0, pid);
+    if h.is_null() {
+      // 降级到较低权限
+      OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+    } else {
+      h
+    }
   };
   
   if handle.is_null() {
-    return false;
+    // Win32 OpenProcess 失败（可能受内核保护），回退到 PowerShell Get-Process
+    return optimize_process_via_powershell(pid, priority_name, affinity_cores);
   }
   
   let mut success = true;
+  let mut fail_reason = String::new();
   
-  // 设置进程优先级
   let priority_value = get_priority_value(priority_name);
   
   let priority_result = unsafe {
@@ -222,9 +302,11 @@ fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> bo
   
   if priority_result == 0 {
     success = false;
+    if fail_reason.is_empty() {
+      fail_reason = "设置优先级被拒绝".to_string();
+    }
   }
   
-  // 设置进程 CPU 亲和性
   if !affinity_cores.is_empty() {
     let mut affinity_mask: u32 = 0;
     for &core in affinity_cores {
@@ -240,6 +322,9 @@ fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> bo
       
       if affinity_result == 0 {
         success = false;
+        if fail_reason.is_empty() {
+          fail_reason = "设置CPU亲和性被拒绝".to_string();
+        }
       }
     }
   }
@@ -249,7 +334,59 @@ fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> bo
     CloseHandle(handle);
   }
   
-  success
+  (success, fail_reason)
+}
+
+// PowerShell 回退方案：适用于 Win32 OpenProcess 被内核级保护拦截的进程
+// 通过 PowerShell 的 Get-Process 操作进程（部分反作弊驱动对微软签名进程放行）
+fn optimize_process_via_powershell(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> (bool, String) {
+    // 将优先级名映射到 PowerShell 可识别的格式
+    let pri = match priority_name.to_lowercase().as_str() {
+        "idle" => "Idle",
+        "belownormal" => "BelowNormal",
+        "normal" => "Normal",
+        _ => "Normal",
+    };
+
+    // 计算 CPU 亲和性掩码
+    let mut affinity_mask: u64 = 0;
+    for &core in affinity_cores {
+        if core < 64 {
+            affinity_mask |= 1u64 << core;
+        }
+    }
+
+    let affinity_str = if affinity_mask > 0 {
+        format!("; $p.ProcessorAffinity={}", affinity_mask)
+    } else {
+        String::new()
+    };
+
+    let ps_script = format!(
+        "$p=Get-Process -Id {} -ErrorAction Stop; \
+         $p.PriorityClass='{}'{}; \
+         exit 0",
+        pid, pri, affinity_str
+    );
+
+    let output = Command::new("powershell")
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW，无窗口闪现
+        .args(["-NoProfile", "-Command", &ps_script])
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => (true, String::new()),
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let err_msg = stderr.trim().to_string();
+            if err_msg.is_empty() {
+                (false, "PowerShell 操作被拒绝（即使 Get-Process 也无法访问该进程）".to_string())
+            } else {
+                (false, format!("PowerShell 拒绝: {}", err_msg))
+            }
+        }
+        Err(e) => (false, format!("无法启动 PowerShell: {}", e)),
+    }
 }
 
 // =========================================================
@@ -257,6 +394,30 @@ fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> bo
 // 注意：#[tauri::command] 标记表示这是一个 Tauri 命令
 // 前端可以通过 invoke('get_process_status') 调用
 // =========================================================
+
+struct TrayState {
+  minimize_to_tray: Mutex<bool>,
+}
+
+#[tauri::command]
+fn set_minimize_to_tray(state: tauri::State<TrayState>, value: bool) {
+  *state.minimize_to_tray.lock().unwrap() = value;
+}
+
+#[tauri::command]
+fn send_notification(app: tauri::AppHandle, title: String, body: String) {
+  let result = app
+    .notification()
+    .builder()
+    .title(&title)
+    .body(&body)
+    .show();
+  if let Err(e) = result {
+    eprintln!("[ACE Helper] 通知发送失败: {:?}", e);
+  } else {
+    println!("[ACE Helper] 通知已发送: {}", title);
+  }
+}
 
 // 获取所有进程状态的 Tauri 命令
 #[tauri::command]
@@ -374,23 +535,28 @@ fn optimize_processes(config: OptimizationConfig) -> Vec<ProcessStatus> {
 
       // 进程不符合优化配置，需要进行优化
       actual_optimize_count += 1;
-      let optimize_success = optimize_process(pid, &config.priority, &config.affinity);
+      let (optimize_success, fail_reason) = optimize_process(pid, &config.priority, &config.affinity);
 
       // 获取优化后的最新信息
       let (priority_cn, priority_key, affinity, core_count) = get_process_info(pid);
-
-      let mut hint = format!("已优化 (PID: {})", pid);
-      if let Some(p) = &priority_cn {
-        hint.push_str(&format!("，优先级: {}", p));
-      }
-      if let Some(a) = &affinity {
-        hint.push_str(&format!("，CPU: {}", a));
-      }
 
       let final_state = if optimize_success {
         ProcessState::Optimized
       } else {
         ProcessState::Failed
+      };
+
+      let hint = if optimize_success {
+        let mut h = format!("已优化 (PID: {})", pid);
+        if let Some(p) = &priority_cn {
+          h.push_str(&format!("，优先级: {}", p));
+        }
+        if let Some(a) = &affinity {
+          h.push_str(&format!("，CPU: {}", a));
+        }
+        h
+      } else {
+        format!("优化失败 (PID: {}) — {}", pid, fail_reason)
       };
 
       results.push(ProcessStatus {
@@ -436,16 +602,94 @@ pub fn run() {
   tauri::Builder::default()
     // 注册 Tauri 命令，前端才能调用
     // 注意：必须在这里列出所有 #[tauri::command] 标记的函数
-    .invoke_handler(tauri::generate_handler![get_process_status, optimize_processes])
+    .invoke_handler(tauri::generate_handler![get_process_status, optimize_processes, set_minimize_to_tray, send_notification])
+    .manage(TrayState { minimize_to_tray: Mutex::new(false) })
     // 注册自动启动插件
     .plugin(tauri_plugin_autostart::init(
       tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-      None,
+      Some(vec!["--hidden"]),
     ))
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_fs::init())
+    .plugin(tauri_plugin_notification::init())
     .setup(|app| {
-      // 调试模式下启用日志插件
+      let is_autostart = std::env::args().any(|a| a == "--hidden");
+
+      if !is_autostart {
+        if let Some(window) = app.get_webview_window("main") {
+          let _ = window.show();
+        }
+      }
+
+      let show_item = MenuItemBuilder::with_id("show", "显示主窗口").build(app)?;
+      let settings_item = MenuItemBuilder::with_id("settings", "设置").build(app)?;
+      let quit_item = MenuItemBuilder::with_id("quit", "退出").build(app)?;
+      let menu = MenuBuilder::new(app)
+        .item(&show_item)
+        .item(&settings_item)
+        .separator()
+        .item(&quit_item)
+        .build()?;
+
+      let tray_icon = app.default_window_icon().cloned();
+
+      let mut tray_builder = TrayIconBuilder::new()
+        .tooltip("ACE 小助手")
+        .menu(&menu);
+
+      if let Some(icon) = tray_icon {
+        tray_builder = tray_builder.icon(icon);
+      }
+
+      let _tray = tray_builder
+        .on_menu_event(|app_handle, event| {
+          match event.id().as_ref() {
+            "show" => {
+              if let Some(window) = app_handle.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+                let _ = app_handle.emit("tray-show-main", ());
+              }
+            }
+            "settings" => {
+              if let Some(window) = app_handle.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+                let _ = app_handle.emit("tray-open-settings", ());
+              }
+            }
+            "quit" => {
+              app_handle.exit(0);
+            }
+            _ => {}
+          }
+        })
+        .on_tray_icon_event(|tray, event| {
+          if let TrayIconEvent::DoubleClick { .. } = event {
+            if let Some(window) = tray.app_handle().get_webview_window("main") {
+              let _ = window.show();
+              let _ = window.set_focus();
+              let _ = tray.app_handle().emit("tray-show-main", ());
+            }
+          }
+        })
+        .build(app)?;
+
+      if let Some(window) = app.get_webview_window("main") {
+        let w = window.clone();
+        window.on_window_event(move |event| {
+          if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            let state = w.state::<TrayState>();
+            let minimize = *state.minimize_to_tray.lock().unwrap();
+            if minimize {
+              let _ = w.hide();
+              api.prevent_close();
+            }
+          }
+        });
+      }
+
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()

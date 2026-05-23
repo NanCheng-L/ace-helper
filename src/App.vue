@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
+import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import Sidebar from './components/Sidebar.vue'
 import HomePage from './views/home/HomePage.vue'
 import OptimizationPage from './views/optimization/OptimizationPage.vue'
@@ -9,6 +13,7 @@ import { useLogs } from './composables/useLogs'
 import { useSettings } from './composables/useSettings'
 import { useAutoMonitor } from './composables/useAutoMonitor'
 import { useProcess } from './composables/useProcess'
+import { loadConfig } from './utils/configStorage'
 
 // 当前激活的标签页
 const activeTab = ref('home')
@@ -19,7 +24,7 @@ const metaText = ref('准备好了！点"一键优化"让 ACE 进程乖乖听话
 // 使用 composables
 const { logs, addLog, initLog } = useLogs()
 const { settings, loadSettings, getEnabledProcesses } = useSettings()
-const { isAutoMonitoring, loadAutoMonitorSetting, startAutoMonitor, toggleAutoMonitor } = useAutoMonitor()
+const { isAutoMonitoring, loadAutoMonitorSetting, startAutoMonitor, toggleAutoMonitor, startAutoMonitorIfEnabled } = useAutoMonitor()
 const {
   processStates,
   processDetails,
@@ -42,6 +47,28 @@ const setMeta = (text: string) => {
 
 // 延迟函数
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+// 发送系统通知
+const notifyOptimized = async (newlyOptimized: string[]) => {
+  if (newlyOptimized.length === 0) return
+  try {
+    const config = await loadConfig()
+    if (!config.appSettings?.enableNotifications) return
+
+    let grantResult = await isPermissionGranted()
+    if (grantResult === null || grantResult === false) {
+      const permission = await requestPermission()
+      grantResult = permission === 'granted'
+    }
+    if (!grantResult) return
+
+    const names = newlyOptimized.join('、')
+    invoke('send_notification', {
+      title: 'ACE 小助手',
+      body: `已优化：${names}`
+    }).catch(() => {})
+  } catch {}
+}
 
 // 运行优化流程
 const runOptimize = async (isAuto = false) => {
@@ -69,6 +96,12 @@ const runOptimize = async (isAuto = false) => {
     // 输出日志
     result.results.forEach(r => addLog(r.logMessage))
 
+    // 收集新优化的进程名并发送通知
+    const newlyOptimized = result.results
+      .filter(r => r.state === 'optimized' && previousStates[r.name] !== 'optimized')
+      .map(r => r.name)
+    notifyOptimized(newlyOptimized)
+
     // 确保提示至少显示1秒（仅手动触发时）
     if (!isAuto) {
       const elapsed = Date.now() - startTime
@@ -79,7 +112,8 @@ const runOptimize = async (isAuto = false) => {
 
     // 设置底部提示
     if (result.failedCount > 0) {
-      setMeta(`有 ${result.failedCount} 个进程在捣蛋不肯配合…试试用管理员权限？😾`)
+      addLog(`⚠️ 有 ${result.failedCount} 个进程因权限不足无法优化`)
+      setMeta(`有 ${result.failedCount} 个进程需要管理员权限才能优化`)
     } else if (result.optimizedCount > 0) {
       setMeta('全部进程已乖乖排好队，一切正常喵~ ✦')
       if (result.actuallyOptimizedCount > 0) {
@@ -142,13 +176,21 @@ const handleToggleMonitor = () => {
   )
 }
 
+// 同步关闭最小化设置到后端
+const syncMinimizeToTray = async () => {
+  try {
+    const config = await loadConfig()
+    invoke('set_minimize_to_tray', { value: config.appSettings?.minimizeToTray ?? true }).catch(() => {})
+  } catch {}
+}
+
 // 处理菜单选择
 const handleSelect = (id: string) => {
   activeTab.value = id
   if (id === 'settings') {
-    loadSettings()
+    loadSettings().then(() => syncMinimizeToTray())
   } else if (id === 'home') {
-    loadSettings()
+    loadSettings().then(() => syncMinimizeToTray())
     loadAutoMonitorSetting()
     if (isAutoMonitoring.value) {
       runOptimize(true)
@@ -163,15 +205,27 @@ const goToSettings = () => {
 
 // 初始化
 onMounted(() => {
-  loadSettings()
+  listen('tray-open-settings', () => {
+    handleSelect('settings')
+  })
+
+  listen('tray-show-main', () => {
+    handleSelect('home')
+  })
+
+  loadSettings().then(async () => {
+    await syncMinimizeToTray()
+    await getCurrentWindow().show()
+  })
   loadAutoMonitorSetting()
   initLog('UI 原型已加载：点击「一键优化」开始优化。')
 
   setTimeout(() => {
-    if (isAutoMonitoring.value) {
+    // 根据持久化设置决定是否启动自动监听
+    startAutoMonitorIfEnabled(() => {
       addLog('已开启自动监听，每 3 秒检测一次')
       runOptimize(true)
-    }
+    })
   }, 1000)
 })
 </script>
