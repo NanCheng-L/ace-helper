@@ -86,7 +86,7 @@ node scripts/switch-config.js prod
 
 👉 **[https://github.com/NanCheng-L/ace-helper/releases](https://github.com/NanCheng-L/ace-helper/releases)**
 
-下载 `.msi` 安装包，双击安装即可使用。
+下载 `.exe` 安装包，双击安装即可使用。
 
 ## 🛠️ 技术栈
 
