@@ -54,6 +54,7 @@
   "plugins": {
     "updater": {
       "endpoints": ["https://github.com/NanCheng-L/ace-helper/releases/latest/download/latest.json"],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERCQzJEOUI3Q0MzREY4OTEKUldTUitEM010OW5DMjRYblY0eU5DbE1SbDRYcGpTUmlQVGxOL1B6SmNIcnlORUYvUmx5YmN1d1gK",
       "windows": {
         "installMode": "passive"
       }
