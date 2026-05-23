@@ -7,8 +7,8 @@ import { HelpIcon, LinkIcon, RefreshIcon, DownloadIcon, SearchIcon, LightbulbIco
 
 const socialLinks = [
   { iconType: 'github', label: 'GitHub', url: 'https://github.com/NanCheng-L/ace-helper', desc: '查看源码，欢迎 Star' },
-  { iconType: 'bilibili', label: 'B站', url: 'https://space.bilibili.com/yourid', desc: '视频教程与更新动态' },
-  { iconType: 'douyin', label: '抖音', url: 'https://www.douyin.com/user/yourid', desc: '短视频日常分享' }
+  { iconType: 'bilibili', label: 'B站', url: 'https://www.bilibili.com/video/BV1e7G66TEui/', desc: '视频教程与更新动态' },
+  { iconType: 'douyin', label: '抖音', url: 'https://v.douyin.com/9OZOHNtbZlw/', desc: '短视频日常分享' }
 ]
 
 const appVersion = ref('0.1.0')
