@@ -38,7 +38,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "android": {
       "debugApplicationIdSuffix": ".debug"
     },
@@ -54,7 +54,6 @@
   "plugins": {
     "updater": {
       "endpoints": ["https://github.com/NanCheng-L/ace-helper/releases/latest/download/latest.json"],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIyQkUwQjQ4ODE5RjEzNDMKUldSREU1K0JTQXUrc2l0cG93b1FqNk1sZHpBWGVod1FEUy9tWVRTaEpqc2g2RWJubklqaHZaRlkK",
       "windows": {
         "installMode": "passive"
       }
