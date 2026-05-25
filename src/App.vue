@@ -85,7 +85,8 @@ const runOptimize = async (isAuto = false) => {
     const realStatuses = await optimizeProcesses({
       processes: settings.value.enabledProcesses,
       priority: settings.value.priority,
-      affinity: settings.value.affinity
+      affinity: settings.value.affinity,
+      ioPriority: settings.value.ioPriority
     })
 
     // 保存之前的状态用于判断
@@ -145,7 +146,19 @@ const runOptimize = async (isAuto = false) => {
 // 获取进程信息
 const getProcessInfo = async () => {
   try {
-    const realStatuses = await getProcessStatus()
+    // 使用配置中启用的进程列表
+    const config = await loadConfig()
+    const processesToCheck = config.optimizationSettings?.enabledProcesses || ['SGuardSvc64.exe', 'SGuard64.exe', 'ACE-Tray.exe']
+    
+    // 构建优化配置用于判断进程是否已优化
+    const optimizationConfig = {
+      processes: processesToCheck,
+      priority: config.optimizationSettings?.priority || 'Idle',
+      affinity: config.optimizationSettings?.affinity || [],
+      ioPriority: config.optimizationSettings?.ioPriority || 'VeryLow'
+    }
+    
+    const realStatuses = await getProcessStatus(processesToCheck, optimizationConfig)
     addLog('===== 获取进程信息 =====')
 
     const results = processInfoResults(realStatuses)

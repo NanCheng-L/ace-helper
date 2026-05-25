@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { PRIORITY_OPTIONS } from '../config/priority'
-import { ToolsIcon, RotateIcon, SaveIcon, CheckIcon, ShieldIcon, PawIcon, TrayIcon, AppIcon, ZapIcon, CpuIcon } from './icons'
+import { IO_PRIORITY_OPTIONS } from '../config/ioPriority'
+import { ToolsIcon, RotateIcon, SaveIcon, CheckIcon, ShieldIcon, PawIcon, TrayIcon, AppIcon, ZapIcon, CpuIcon, HardDriveIcon } from './icons'
 import { loadConfig, updateOptimizationSettings } from '../utils/configStorage'
 import type { Component } from 'vue'
 
@@ -32,12 +33,14 @@ interface Settings {
   enabledProcesses: string[]
   priority: string
   affinity: number[]
+  ioPriority: string
 }
 
 const settings = ref<Settings>({
   enabledProcesses: [...DEFAULT_ENABLED_PROCESSES],
   priority: 'Idle',
-  affinity: [...defaultAffinity]
+  affinity: [...defaultAffinity],
+  ioPriority: 'VeryLow'
 })
 
 const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
@@ -60,10 +63,12 @@ const loadSettings = async () => {
       settings.value.affinity = (config.optimizationSettings.affinity && config.optimizationSettings.affinity.length > 0)
         ? config.optimizationSettings.affinity
         : [...defaultAffinity]
+      settings.value.ioPriority = config.optimizationSettings.ioPriority || 'VeryLow'
     } else {
       settings.value.enabledProcesses = [...DEFAULT_ENABLED_PROCESSES]
       settings.value.priority = 'Idle'
       settings.value.affinity = [...defaultAffinity]
+      settings.value.ioPriority = 'VeryLow'
     }
   } catch (e) {
     console.error('[ACE Helper] 加载设置失败:', e)
@@ -74,11 +79,13 @@ const resetSettings = async () => {
   settings.value.enabledProcesses = [...DEFAULT_ENABLED_PROCESSES]
   settings.value.priority = 'Idle'
   settings.value.affinity = [...defaultAffinity]
+  settings.value.ioPriority = 'VeryLow'
   try {
     await updateOptimizationSettings({
       enabledProcesses: [...DEFAULT_ENABLED_PROCESSES],
       priority: 'Idle',
-      affinity: [...defaultAffinity]
+      affinity: [...defaultAffinity],
+      ioPriority: 'VeryLow'
     })
   } catch (e) {
     console.error('[ACE Helper] 重置设置失败:', e)
@@ -96,7 +103,8 @@ const saveSettings = async () => {
     await updateOptimizationSettings({
       enabledProcesses: settings.value.enabledProcesses,
       priority: settings.value.priority,
-      affinity: settings.value.affinity
+      affinity: settings.value.affinity,
+      ioPriority: settings.value.ioPriority
     })
     console.log('[ACE Helper] 设置已保存:', settings.value)
     saveStatus.value = 'saved'
@@ -125,6 +133,10 @@ const isProcessChecked = (processName: string) => {
 
 const setPriority = (priority: string) => {
   settings.value.priority = priority
+}
+
+const setIoPriority = (ioPriority: string) => {
+  settings.value.ioPriority = ioPriority
 }
 
 const toggleCore = (coreId: number) => {
@@ -247,6 +259,36 @@ onMounted(() => {
             :value="p.value"
             :checked="settings.priority === p.value"
             @change="setPriority(p.value)"
+          />
+          <span class="radio-custom"></span>
+          <span class="priority-info">
+            <span class="priority-label">{{ p.label }}</span>
+            <span class="priority-desc">{{ p.desc }}</span>
+          </span>
+        </label>
+      </div>
+    </section>
+
+    <!-- 磁盘 I/O 优先级设置 -->
+    <section class="settings-section">
+      <div class="section-title">
+        <HardDriveIcon :size="18" />
+        <span>磁盘 I/O 优先级</span>
+      </div>
+      <p class="section-desc">设置进程的磁盘 I/O 优先级（默认最低）</p>
+      <div class="priority-list">
+        <label
+          v-for="p in IO_PRIORITY_OPTIONS"
+          :key="p.value"
+          class="priority-item"
+          :class="{ selected: settings.ioPriority === p.value }"
+        >
+          <input
+            type="radio"
+            name="ioPriority"
+            :value="p.value"
+            :checked="settings.ioPriority === p.value"
+            @change="setIoPriority(p.value)"
           />
           <span class="radio-custom"></span>
           <span class="priority-info">

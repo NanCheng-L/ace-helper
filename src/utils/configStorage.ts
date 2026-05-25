@@ -6,6 +6,7 @@ export interface OptimizationSettings {
   enabledProcesses: string[]
   priority: string
   affinity: number[]
+  ioPriority: string
 }
 
 export interface AppSettings {
@@ -23,7 +24,8 @@ export interface AppConfig {
 const defaultOptimizationSettings: OptimizationSettings = {
   enabledProcesses: ['SGuardSvc64.exe', 'SGuard64.exe', 'ACE-Tray.exe', 'ace-helper.exe'],
   priority: 'Idle',
-  affinity: []
+  affinity: [],
+  ioPriority: 'VeryLow'
 }
 
 const defaultAppSettings: AppSettings = {
@@ -91,7 +93,8 @@ export async function loadConfig(): Promise<AppConfig> {
       optimizationSettings: {
         enabledProcesses: parsed.optimizationSettings?.enabledProcesses ?? defaultOptimizationSettings.enabledProcesses,
         priority: parsed.optimizationSettings?.priority ?? defaultOptimizationSettings.priority,
-        affinity
+        affinity,
+        ioPriority: parsed.optimizationSettings?.ioPriority ?? defaultOptimizationSettings.ioPriority
       },
       appSettings: {
         autoStart: parsed.appSettings?.autoStart ?? defaultAppSettings.autoStart,
@@ -126,7 +129,8 @@ export async function updateConfig(partial: Partial<AppConfig>): Promise<void> {
     optimizationSettings: {
       enabledProcesses: partial.optimizationSettings?.enabledProcesses ?? current.optimizationSettings!.enabledProcesses,
       priority: partial.optimizationSettings?.priority ?? current.optimizationSettings!.priority,
-      affinity: partial.optimizationSettings?.affinity ?? current.optimizationSettings!.affinity
+      affinity: partial.optimizationSettings?.affinity ?? current.optimizationSettings!.affinity,
+      ioPriority: partial.optimizationSettings?.ioPriority ?? current.optimizationSettings!.ioPriority ?? 'VeryLow'
     },
     appSettings: {
       autoStart: partial.appSettings?.autoStart ?? current.appSettings!.autoStart,

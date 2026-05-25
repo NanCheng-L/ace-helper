@@ -17,7 +17,8 @@ export function useSettings() {
   const settings = ref<SettingsState>({
     enabledProcesses: [...DEFAULT_ENABLED_PROCESSES],
     priority: 'Idle',
-    affinity: [(navigator.hardwareConcurrency || 8) - 1]
+    affinity: [(navigator.hardwareConcurrency || 8) - 1],
+    ioPriority: 'VeryLow'
   })
   const isLoading = ref(false)
 
@@ -34,7 +35,8 @@ export function useSettings() {
         settings.value = {
           enabledProcesses: config.optimizationSettings.enabledProcesses || [...DEFAULT_ENABLED_PROCESSES],
           priority: config.optimizationSettings.priority || 'Idle',
-          affinity
+          affinity,
+          ioPriority: config.optimizationSettings.ioPriority || 'VeryLow'
         }
       }
     } catch (e) {
@@ -50,7 +52,8 @@ export function useSettings() {
       await updateOptimizationSettings({
         enabledProcesses: newSettings.enabledProcesses,
         priority: newSettings.priority,
-        affinity: newSettings.affinity
+        affinity: newSettings.affinity,
+        ioPriority: newSettings.ioPriority
       })
       settings.value = newSettings
     } catch (e) {

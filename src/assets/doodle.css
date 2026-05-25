@@ -229,6 +229,9 @@ body{
   font-weight:900;
   letter-spacing:.5px;
   text-shadow: 0 2px 0 rgba(0,0,0,.12);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .headline .meta{
   color:var(--muted);
@@ -373,11 +376,13 @@ body{
   background: #bbb;
 }
 .tag.offline{ background: rgba(205,180,255,.55); }
+.tag.online{ background: rgba(169,214,255,.75); }
 .tag.scanning{ background: rgba(255,230,109,.8); }
 .tag.optimizing{ background: rgba(169,214,255,.75); }
 .tag.optimized{ background: rgba(185,251,192,.8); }
 .tag.failed{ background: rgba(255,156,132,.8); }
 .tag.offline .dot{ background:#A0A7B0; }
+.tag.online .dot{ background:#7FB7FF; }
 .tag.scanning .dot{ background:#FFD347; }
 .tag.optimizing .dot{ background:#7FB7FF; }
 .tag.optimized .dot{ background:#60E989; }
