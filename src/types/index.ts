@@ -3,7 +3,7 @@
 export type BackendProcessState = 1 | 2 | 3 | 4
 
 // 前端使用的进程状态类型
-export type FrontendProcessState = 'offline' | 'scanning' | 'optimizing' | 'optimized' | 'failed'
+export type FrontendProcessState = 'offline' | 'online' | 'scanning' | 'optimizing' | 'optimized' | 'failed'
 
 // 定义从 Rust 后端接收的数据结构
 export interface RealProcessStatus {
@@ -16,6 +16,8 @@ export interface RealProcessStatus {
   priorityKey?: string
   affinity?: string
   coreCount?: number
+  ioPriority?: string
+  ioPriorityKey?: string
 }
 
 // 进程数据（用于 ProcessCard 组件）
@@ -29,6 +31,7 @@ export interface ProcessData {
   priority?: string
   affinity?: string
   coreCount?: number
+  ioPriority?: string
 }
 
 // 进程列表项
@@ -42,6 +45,7 @@ export interface OptimizationConfig {
   processes: string[]
   priority: string
   affinity: number[]
+  ioPriority: string
 }
 
 // 设置状态
@@ -49,6 +53,7 @@ export interface SettingsState {
   enabledProcesses: string[]
   priority: string
   affinity: number[]
+  ioPriority: string
 }
 
 // 进程详情
@@ -57,4 +62,5 @@ export interface ProcessDetail {
   priority?: string
   affinity?: string
   coreCount?: number
+  ioPriority?: string
 }

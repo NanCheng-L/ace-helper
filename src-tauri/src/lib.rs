@@ -7,6 +7,7 @@ use sysinfo::System;
 use winapi::um::processthreadsapi::{OpenProcess, GetPriorityClass, SetPriorityClass, GetCurrentProcess, OpenProcessToken};
 use winapi::um::winbase::{GetProcessAffinityMask, SetProcessAffinityMask, LookupPrivilegeValueW};
 use winapi::um::winnt::{PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_INFORMATION, PROCESS_QUERY_INFORMATION, TOKEN_ADJUST_PRIVILEGES, TOKEN_QUERY, SE_PRIVILEGE_ENABLED};
+use winapi::shared::ntdef::NTSTATUS;
 use winapi::um::handleapi::CloseHandle;
 use winapi::um::securitybaseapi::AdjustTokenPrivileges;
 // Tauri 系统托盘
@@ -68,6 +69,8 @@ struct ProcessStatus {
   priority_key: Option<String>,   // 优先级（英文键，用于比对）
   affinity: Option<String>,      // CPU 亲和性
   core_count: Option<u32>,       // 使用核心数
+  io_priority: Option<String>,   // 磁盘 I/O 优先级（中文显示）
+  io_priority_key: Option<String>, // 磁盘 I/O 优先级（英文键，用于比对）
 }
 
 // 定义优化配置结构体，供前端调用
@@ -78,6 +81,7 @@ struct OptimizationConfig {
   processes: Vec<String>,        // 要优化的进程列表
   priority: String,               // 设置的优先级
   affinity: Vec<u32>,             // 设置的 CPU 亲和性核心
+  io_priority: String,            // 设置的磁盘 I/O 优先级
 }
 
 // 获取当前时间的字符串
@@ -172,10 +176,93 @@ fn get_priority_key(priority_class: u32) -> &'static str {
   }
 }
 
+// 将磁盘 I/O 优先级名称转为 Windows 代码
+fn get_io_priority_value(io_priority_name: &str) -> u32 {
+  match io_priority_name {
+    "VeryLow" | "verylow" => 0,  // IoPriorityVeryLow
+    "Low" | "low" => 1,          // IoPriorityLow
+    "Normal" | "normal" => 2,    // IoPriorityNormal
+    _ => 0,  // 默认 VeryLow
+  }
+}
+
+// 将 Windows 磁盘 I/O 优先级代码转为中文显示
+fn get_io_priority_name(io_priority: u32) -> &'static str {
+  match io_priority {
+    0 => "非常低",
+    1 => "低",
+    2 => "正常",
+    _ => "未知",
+  }
+}
+
+// 将 Windows 磁盘 I/O 优先级代码转为英文键（用于比对）
+fn get_io_priority_key(io_priority: u32) -> &'static str {
+  match io_priority {
+    0 => "VeryLow",
+    1 => "Low",
+    2 => "Normal",
+    _ => "Unknown",
+  }
+}
+
+// Windows I/O 优先级常量
+const PROCESS_IO_PRIORITY: u32 = 33;
+
+// 使用 NtQueryInformationProcess 获取 I/O 优先级
+extern "system" {
+  fn NtQueryInformationProcess(
+    ProcessHandle: *mut winapi::ctypes::c_void,
+    ProcessInformationClass: u32,
+    ProcessInformation: *mut winapi::ctypes::c_void,
+    ProcessInformationLength: u32,
+    ReturnLength: *mut u32,
+  ) -> NTSTATUS;
+  
+  fn NtSetInformationProcess(
+    ProcessHandle: *mut winapi::ctypes::c_void,
+    ProcessInformationClass: u32,
+    ProcessInformation: *const winapi::ctypes::c_void,
+    ProcessInformationLength: u32,
+  ) -> NTSTATUS;
+}
+
+// 获取进程的 I/O 优先级
+fn get_process_io_priority(handle: *mut winapi::ctypes::c_void) -> Option<u32> {
+  unsafe {
+    let mut io_priority: u32 = 0;
+    let status = NtQueryInformationProcess(
+      handle,
+      PROCESS_IO_PRIORITY,
+      &mut io_priority as *mut u32 as *mut winapi::ctypes::c_void,
+      std::mem::size_of::<u32>() as u32,
+      std::ptr::null_mut(),
+    );
+    if status >= 0 {
+      Some(io_priority)
+    } else {
+      None
+    }
+  }
+}
+
+// 设置进程的 I/O 优先级
+fn set_process_io_priority(handle: *mut winapi::ctypes::c_void, io_priority: u32) -> bool {
+  unsafe {
+    let status = NtSetInformationProcess(
+      handle,
+      PROCESS_IO_PRIORITY,
+      &io_priority as *const u32 as *const winapi::ctypes::c_void,
+      std::mem::size_of::<u32>() as u32,
+    );
+    status >= 0
+  }
+}
+
 // 获取进程信息的函数
 // 参数: pid 进程 ID
-// 返回: (优先级, CPU 亲和性, 使用核心数)
-fn get_process_info(pid: u32) -> (Option<String>, Option<String>, Option<String>, Option<u32>) {
+// 返回: (优先级, 优先级键, CPU 亲和性, 使用核心数, I/O 优先级, I/O 优先级键)
+fn get_process_info(pid: u32) -> (Option<String>, Option<String>, Option<String>, Option<u32>, Option<String>, Option<String>) {
   // 确保已启用 SeDebugPrivilege
   ensure_se_debug_privilege();
   
@@ -193,7 +280,7 @@ fn get_process_info(pid: u32) -> (Option<String>, Option<String>, Option<String>
   
   // 检查句柄是否有效
   if handle.is_null() {
-    return (None, None, None, None);
+    return (None, None, None, None, None, None);
   };
   
   // 声明变量用于接收 API 结果
@@ -209,11 +296,6 @@ fn get_process_info(pid: u32) -> (Option<String>, Option<String>, Option<String>
   let affinity_result = unsafe {
     GetProcessAffinityMask(handle, &mut process_affinity_mask as *mut usize, &mut system_affinity_mask as *mut usize)
   };
-  
-  // 关闭句柄，释放资源
-  unsafe {
-    CloseHandle(handle);
-  }
 
   // 获取中文优先级名称和英文优先级键
   let priority_cn = if priority_result != 0 {
@@ -248,29 +330,47 @@ fn get_process_info(pid: u32) -> (Option<String>, Option<String>, Option<String>
     None
   };
   
-  (priority_cn, priority_key, affinity_str, core_count)
+  // 获取 I/O 优先级（在关闭句柄之前）
+  let io_priority = get_process_io_priority(handle);
+  let io_priority_cn = io_priority.map(|p| get_io_priority_name(p).to_string());
+  let io_priority_key = io_priority.map(|p| get_io_priority_key(p).to_string());
+  
+  // 关闭句柄，释放资源
+  unsafe {
+    CloseHandle(handle);
+  }
+  
+  (priority_cn, priority_key, affinity_str, core_count, io_priority_cn, io_priority_key)
 }
 
 // 检查进程是否在运行
 // 参数: sys System 实例, name 进程名
-// 返回: Some((pid, 中文优先级, 英文优先级键, CPU 亲和性, 使用核心数)) 或 None
-fn check_process_running(sys: &System, name: &str) -> Option<(u32, Option<String>, Option<String>, Option<String>, Option<u32>)> {
+// 返回: Some((pid, 中文优先级, 英文优先级键, CPU 亲和性, 使用核心数, I/O 优先级, I/O 优先级键)) 或 None
+fn check_process_running(sys: &System, name: &str) -> Option<(u32, Option<String>, Option<String>, Option<String>, Option<u32>, Option<String>, Option<String>)> {
+  // 将目标进程名转为小写用于不区分大小写的比较
+  let target_name_lower = name.to_lowercase();
+  
   // 遍历系统中所有进程
-  for process in sys.processes_by_name(name) {
-    let pid = process.pid().as_u32();
+  for (pid, process) in sys.processes() {
+    let process_name = process.name().to_string();
     
-    // 获取该进程的详细信息
-    let (priority_cn, priority_key, affinity, core_count) = get_process_info(pid);
-    
-    return Some((pid, priority_cn, priority_key, affinity, core_count));
+    // 不区分大小写比较进程名
+    if process_name.to_lowercase() == target_name_lower {
+      let pid_u32 = pid.as_u32();
+      
+      // 获取该进程的详细信息
+      let (priority_cn, priority_key, affinity, core_count, io_priority_cn, io_priority_key) = get_process_info(pid_u32);
+      
+      return Some((pid_u32, priority_cn, priority_key, affinity, core_count, io_priority_cn, io_priority_key));
+    }
   }
   None
 }
 
-// 优化进程（设置优先级和 CPU 亲和性）
-// 参数: pid 进程 ID, priority_name 优先级名称, affinity_cores CPU 核心列表
+// 优化进程（设置优先级、CPU 亲和性和 I/O 优先级）
+// 参数: pid 进程 ID, priority_name 优先级名称, affinity_cores CPU 核心列表, io_priority_name I/O 优先级名称
 // 返回: 是否成功
-fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> (bool, String) {
+fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32], io_priority_name: &str) -> (bool, String) {
   // 确保已启用 SeDebugPrivilege
   ensure_se_debug_privilege();
   
@@ -288,7 +388,7 @@ fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> (b
   
   if handle.is_null() {
     // Win32 OpenProcess 失败（可能受内核保护），回退到 PowerShell Get-Process
-    return optimize_process_via_powershell(pid, priority_name, affinity_cores);
+    return optimize_process_via_powershell(pid, priority_name, affinity_cores, io_priority_name);
   }
   
   let mut success = true;
@@ -329,6 +429,15 @@ fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> (b
     }
   }
   
+  // 设置 I/O 优先级
+  let io_priority_value = get_io_priority_value(io_priority_name);
+  if !set_process_io_priority(handle, io_priority_value) {
+    success = false;
+    if fail_reason.is_empty() {
+      fail_reason = "设置磁盘I/O优先级被拒绝".to_string();
+    }
+  }
+  
   // 关闭句柄
   unsafe {
     CloseHandle(handle);
@@ -339,7 +448,7 @@ fn optimize_process(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> (b
 
 // PowerShell 回退方案：适用于 Win32 OpenProcess 被内核级保护拦截的进程
 // 通过 PowerShell 的 Get-Process 操作进程（部分反作弊驱动对微软签名进程放行）
-fn optimize_process_via_powershell(pid: u32, priority_name: &str, affinity_cores: &[u32]) -> (bool, String) {
+fn optimize_process_via_powershell(pid: u32, priority_name: &str, affinity_cores: &[u32], _io_priority_name: &str) -> (bool, String) {
     // 将优先级名映射到 PowerShell 可识别的格式
     let pri = match priority_name.to_lowercase().as_str() {
         "idle" => "Idle",
@@ -362,6 +471,8 @@ fn optimize_process_via_powershell(pid: u32, priority_name: &str, affinity_cores
         String::new()
     };
 
+    // 注意：PowerShell 无法直接设置 I/O 优先级，需要通过 WMI 或 P/Invoke
+    // 这里我们只设置常规优先级和亲和性，I/O 优先级在 Win32 API 方案中处理
     let ps_script = format!(
         "$p=Get-Process -Id {} -ErrorAction Stop; \
          $p.PriorityClass='{}'{}; \
@@ -419,34 +530,79 @@ fn send_notification(app: tauri::AppHandle, title: String, body: String) {
   }
 }
 
-// 获取所有进程状态的 Tauri 命令
+// 获取进程状态的 Tauri 命令
+// 参数: processes 要检查的进程名列表, config 优化配置（可选）
 #[tauri::command]
-fn get_process_status() -> Vec<ProcessStatus> {
+fn get_process_status(processes: Vec<String>, config: Option<OptimizationConfig>) -> Vec<ProcessStatus> {
   // 创建 System 实例并刷新进程列表
   let mut sys = System::new_all();
   sys.refresh_all();
   
   let mut results = Vec::new();
-  // 要检测的进程列表
-  let processes_to_check = ["SGuardSvc64.exe", "SGuard64.exe", "ACE-Tray.exe"];
   
   // 遍历检查每个进程
-  for &proc_name in &processes_to_check {
-    if let Some((pid, priority_cn, priority_key, affinity, core_count)) = check_process_running(&sys, proc_name) {
-      let mut hint = format!("发现进程在运行 (PID: {})", pid);
+  for proc_name in &processes {
+    if let Some((pid, priority_cn, priority_key, affinity, core_count, io_priority_cn, io_priority_key)) = check_process_running(&sys, proc_name) {
+      // 判断进程是否已优化（如果提供了配置）
+      let is_optimized = if let Some(ref cfg) = config {
+        let is_priority_match = priority_key
+          .as_ref()
+          .map(|pk| pk == &cfg.priority)
+          .unwrap_or(false);
+        
+        let is_affinity_match = if !cfg.affinity.is_empty() {
+          if let Some(ref aff_str) = affinity {
+            let current_cores: Vec<u32> = aff_str
+              .split(", ")
+              .filter_map(|s| s.parse().ok())
+              .collect();
+            let mut target_cores = cfg.affinity.clone();
+            let mut current_cores_sorted = current_cores.clone();
+            target_cores.sort();
+            current_cores_sorted.sort();
+            target_cores == current_cores_sorted
+          } else {
+            false
+          }
+        } else {
+          true
+        };
+        
+        let is_io_priority_match = io_priority_key
+          .as_ref()
+          .map(|io| io == &cfg.io_priority)
+          .unwrap_or(false);
+        
+        is_priority_match && is_affinity_match && is_io_priority_match
+      } else {
+        false
+      };
+      
+      let state = if is_optimized {
+        ProcessState::Optimized
+      } else {
+        ProcessState::Online
+      };
+      
+      let mut hint = if is_optimized {
+        format!("已优化 (PID: {})", pid)
+      } else {
+        format!("发现进程在运行 (PID: {})", pid)
+      };
+      
       if let Some(p) = &priority_cn {
         hint.push_str(&format!("，优先级: {}", p));
       }
       if let Some(a) = &affinity {
         hint.push_str(&format!("，CPU: {}", a));
       }
+      if let Some(io) = &io_priority_cn {
+        hint.push_str(&format!("，磁盘I/O: {}", io));
+      }
       
-      // 对于 get_process_status，我们只检测进程是否存在和获取信息
-      // 由于没有优化配置，我们使用 Online 状态表示进程存在
-      // 优化操作由 optimize_processes 处理
       results.push(ProcessStatus {
         name: proc_name.to_string(),
-        state: ProcessState::Online,
+        state,
         updated_at: get_current_time_str(),
         hint,
         pid: Some(pid),
@@ -454,6 +610,8 @@ fn get_process_status() -> Vec<ProcessStatus> {
         priority_key: priority_key,
         affinity,
         core_count,
+        io_priority: io_priority_cn,
+        io_priority_key: io_priority_key,
       });
     } else {
       results.push(ProcessStatus {
@@ -466,6 +624,8 @@ fn get_process_status() -> Vec<ProcessStatus> {
         priority_key: None,
         affinity: None,
         core_count: None,
+        io_priority: None,
+        io_priority_key: None,
       });
     }
   }
@@ -484,7 +644,7 @@ fn optimize_processes(config: OptimizationConfig) -> Vec<ProcessStatus> {
 
   for proc_name in &config.processes {
     // 首先检测进程是否在运行
-    if let Some((pid, current_priority_cn, current_priority_key, current_affinity, current_core_count)) = check_process_running(&sys, proc_name) {
+    if let Some((pid, current_priority_cn, current_priority_key, current_affinity, current_core_count, current_io_priority_cn, current_io_priority_key)) = check_process_running(&sys, proc_name) {
       // 检查进程是否已经符合优化配置（不依赖前端状态）
       let is_priority_optimized = current_priority_key
         .as_ref()
@@ -508,8 +668,13 @@ fn optimize_processes(config: OptimizationConfig) -> Vec<ProcessStatus> {
       } else {
         true
       };
+      
+      let is_io_priority_optimized = current_io_priority_key
+        .as_ref()
+        .map(|io| io == &config.io_priority)
+        .unwrap_or(false);
 
-      if is_priority_optimized && is_affinity_optimized {
+      if is_priority_optimized && is_affinity_optimized && is_io_priority_optimized {
         // 进程已经符合优化配置，跳过优化
         let mut hint = format!("已优化 (PID: {})", pid);
         if let Some(p) = &current_priority_cn {
@@ -517,6 +682,9 @@ fn optimize_processes(config: OptimizationConfig) -> Vec<ProcessStatus> {
         }
         if let Some(a) = &current_affinity {
           hint.push_str(&format!("，CPU: {}", a));
+        }
+        if let Some(io) = &current_io_priority_cn {
+          hint.push_str(&format!("，磁盘I/O: {}", io));
         }
 
         results.push(ProcessStatus {
@@ -529,16 +697,18 @@ fn optimize_processes(config: OptimizationConfig) -> Vec<ProcessStatus> {
           priority_key: current_priority_key,
           affinity: current_affinity,
           core_count: current_core_count,
+          io_priority: current_io_priority_cn,
+          io_priority_key: current_io_priority_key,
         });
         continue;
       }
 
       // 进程不符合优化配置，需要进行优化
       actual_optimize_count += 1;
-      let (optimize_success, fail_reason) = optimize_process(pid, &config.priority, &config.affinity);
+      let (optimize_success, fail_reason) = optimize_process(pid, &config.priority, &config.affinity, &config.io_priority);
 
       // 获取优化后的最新信息
-      let (priority_cn, priority_key, affinity, core_count) = get_process_info(pid);
+      let (priority_cn, priority_key, affinity, core_count, io_priority_cn, io_priority_key) = get_process_info(pid);
 
       let final_state = if optimize_success {
         ProcessState::Optimized
@@ -553,6 +723,9 @@ fn optimize_processes(config: OptimizationConfig) -> Vec<ProcessStatus> {
         }
         if let Some(a) = &affinity {
           h.push_str(&format!("，CPU: {}", a));
+        }
+        if let Some(io) = &io_priority_cn {
+          h.push_str(&format!("，磁盘I/O: {}", io));
         }
         h
       } else {
@@ -569,6 +742,8 @@ fn optimize_processes(config: OptimizationConfig) -> Vec<ProcessStatus> {
         priority_key: priority_key,
         affinity,
         core_count,
+        io_priority: io_priority_cn,
+        io_priority_key: io_priority_key,
       });
     } else {
       // 进程不在，状态变成离线
@@ -582,6 +757,8 @@ fn optimize_processes(config: OptimizationConfig) -> Vec<ProcessStatus> {
         priority_key: None,
         affinity: None,
         core_count: None,
+        io_priority: None,
+        io_priority_key: None,
       });
     }
   }

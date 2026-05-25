@@ -17,11 +17,11 @@ defineEmits<{
   <header class="topbar">
     <img class="topicon" src="/src/assets/app-icon-32.png" alt="" aria-hidden="true" />
     <div class="headline">
-      <div class="h">ACE 进程状态检测</div>
-      <div class="meta">
-        {{ metaText }}
+      <div class="h">
+        ACE 进程状态检测
         <span v-if="isAutoMonitoring" class="auto-badge">自动监听中</span>
       </div>
+      <div class="meta">{{ metaText }}</div>
     </div>
     <div class="spacer"></div>
     <button class="btn secondary" type="button" @click="$emit('toggleMonitor')">
@@ -30,7 +30,7 @@ defineEmits<{
       </span>
       {{ isAutoMonitoring ? '停止监听' : '开始监听' }}
     </button>
-    <button v-if="false" class="btn secondary" type="button" @click="$emit('getinfo')">
+    <button v-if="true" class="btn secondary" type="button" @click="$emit('getinfo')">
       <span class="mini">
         <SearchIcon :size="12" />
       </span>

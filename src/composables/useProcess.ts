@@ -58,8 +58,14 @@ export function useProcess() {
   }
 
   // 获取进程状态
-  const getProcessStatus = async (): Promise<RealProcessStatus[]> => {
-    return await invoke('get_process_status')
+  // 参数: processes 要检查的进程名列表，不传则使用默认列表
+  // 参数: config 优化配置（可选），用于判断进程是否已优化
+  const getProcessStatus = async (processes?: string[], config?: OptimizationConfig): Promise<RealProcessStatus[]> => {
+    const defaultProcesses = ['SGuardSvc64.exe', 'SGuard64.exe', 'ACE-Tray.exe']
+    return await invoke('get_process_status', { 
+      processes: processes || defaultProcesses,
+      config 
+    })
   }
 
   // 处理优化结果
@@ -100,7 +106,8 @@ export function useProcess() {
         lastUpdated: status.updatedAt.split(' ')[1] || '',
         priority: status.priority,
         affinity: status.affinity,
-        coreCount: status.coreCount
+        coreCount: status.coreCount,
+        ioPriority: status.ioPriority
       }
 
       let logMessage = ''
@@ -119,6 +126,7 @@ export function useProcess() {
           let statusText = '优化成功（已优化）'
           if (status.priority) statusText += `，优先级: ${getPriorityLabel(status.priority)}`
           if (status.affinity) statusText += `，CPU: ${status.affinity}`
+          if (status.ioPriority) statusText += `，磁盘I/O: ${status.ioPriority}`
           logMessage = `${p.name}：${statusText}`
         }
       } else if (status.state === 3) {
@@ -147,7 +155,8 @@ export function useProcess() {
         lastUpdated: status.updatedAt.split(' ')[1] || '',
         priority: status.priority,
         affinity: status.affinity,
-        coreCount: status.coreCount
+        coreCount: status.coreCount,
+        ioPriority: status.ioPriority
       }
 
       let frontendState: FrontendProcessState
@@ -158,7 +167,8 @@ export function useProcess() {
       } else if (status.state === 4) {
         frontendState = 'optimized'
       } else if (status.state === 2) {
-        frontendState = status.priority ? 'optimized' : 'optimizing'
+        // state === 2 是在线状态
+        frontendState = 'online'
       } else {
         frontendState = 'offline'
       }
@@ -166,15 +176,16 @@ export function useProcess() {
       processStates.value[status.name] = frontendState
 
       let info = `${status.name}：`
-      const isOnline = frontendState === 'optimized' || frontendState === 'optimizing'
+      const isOnline = frontendState === 'optimized' || frontendState === 'online'
 
       if (frontendState === 'optimized') info += '已优化'
-      else if (frontendState === 'optimizing') info += '在线（待优化）'
+      else if (frontendState === 'online') info += '在线'
       else if (frontendState === 'offline') info += '离线'
       else if (frontendState === 'failed') info += '优化失败'
 
       if (status.priority) info += `，优先级: ${getPriorityLabel(status.priority)}`
       if (status.affinity) info += `，CPU: ${status.affinity}`
+      if (status.ioPriority) info += `，磁盘I/O: ${status.ioPriority}`
       if (status.pid) info += ` (PID: ${status.pid})`
 
       results.push({ name: status.name, info, isOnline })

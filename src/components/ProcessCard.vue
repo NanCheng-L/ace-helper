@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { getPriorityLabel } from '../config/priority'
+import { getIoPriorityLabel } from '../config/ioPriority'
 import { ShieldIcon, PawIcon, TrayIcon, AppIcon } from './icons'
 
 export interface ProcessData {
   name: string
   doodle: string
-  state: 'offline' | 'scanning' | 'optimizing' | 'optimized' | 'failed'
+  state: 'offline' | 'online' | 'scanning' | 'optimizing' | 'optimized' | 'failed'
   lastUpdated: string
   foundThisRun: boolean
   detailOpen: boolean
   priority?: string
   affinity?: string
   coreCount?: number
+  ioPriority?: string
 }
 
 const props = defineProps<{
@@ -42,6 +44,7 @@ const getProcessIcon = (name: string) => {
 
 const stateText: Record<string, string> = {
   offline: '离线',
+  online: '在线',
   scanning: '检测中',
   optimizing: '优化中',
   optimized: '已优化',
@@ -50,6 +53,7 @@ const stateText: Record<string, string> = {
 
 const moods: Record<string, string> = {
   offline: '( ˘︹˘ )',
+  online: '( •̀ ω •́ )✧',
   scanning: '( •̀ ω •́ )✧',
   optimizing: '(ง •̀_•́)ง',
   optimized: '(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧',
@@ -58,6 +62,7 @@ const moods: Record<string, string> = {
 
 const hints: Record<string, string> = {
   offline: '没有发现它在运行哦',
+  online: '进程正在运行中',
   scanning: '我在努力找它……',
   optimizing: '正在整理中（像把桌面贴纸摆整齐）',
   optimized: '已经帮你整理好啦！',
@@ -66,6 +71,7 @@ const hints: Record<string, string> = {
 
 const descriptions: Record<string, string> = {
   offline: '小声：它今天会不会上线呢…',
+  online: '发现目标！它正在运行中',
   scanning: '我去找找看！',
   optimizing: '整理整理整理——',
   optimized: '通关！奖励你一颗星星 ✦',
@@ -110,6 +116,7 @@ const handleClick = () => {
       <div v-if="process.priority" class="kv"><div>优先级</div><span>{{ getPriorityLabel(process.priority) }}</span></div>
       <div v-if="process.affinity" class="kv"><div>CPU 亲和性</div><span>CPU {{ process.affinity }}</span></div>
       <div v-if="process.coreCount" class="kv"><div>使用核心数</div><span>{{ process.coreCount }} 个核心</span></div>
+      <div v-if="process.ioPriority" class="kv"><div>磁盘 I/O 优先级</div><span>{{ getIoPriorityLabel(process.ioPriority) }}</span></div>
     </div>
     <svg class="sparkle" viewBox="0 0 64 64" aria-hidden="true">
       <path d="M32 5l4.5 14.8L52 24l-15.5 4.2L32 43 27.5 28.2 12 24l15.5-4.2L32 5z" fill="rgba(255,230,109,.95)" stroke="rgba(43,43,43,.75)" stroke-width="3" stroke-linejoin="round"/>
