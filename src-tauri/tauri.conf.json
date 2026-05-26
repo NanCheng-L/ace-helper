@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "ACE Helper",
-  "version": "0.2.0",
+  "productName": "ACE-Helper",
+  "version": "0.3.0",
   "identifier": "com.ace-helper.app",
   "build": {
     "frontendDist": "../dist",

@@ -7,6 +7,7 @@ export interface OptimizationSettings {
   priority: string
   affinity: number[]
   ioPriority: string
+  efficiencyMode: boolean
 }
 
 export interface AppSettings {
@@ -25,7 +26,8 @@ const defaultOptimizationSettings: OptimizationSettings = {
   enabledProcesses: ['SGuardSvc64.exe', 'SGuard64.exe', 'ACE-Tray.exe', 'ace-helper.exe'],
   priority: 'Idle',
   affinity: [],
-  ioPriority: 'VeryLow'
+  ioPriority: 'VeryLow',
+  efficiencyMode: true
 }
 
 const defaultAppSettings: AppSettings = {
@@ -94,7 +96,8 @@ export async function loadConfig(): Promise<AppConfig> {
         enabledProcesses: parsed.optimizationSettings?.enabledProcesses ?? defaultOptimizationSettings.enabledProcesses,
         priority: parsed.optimizationSettings?.priority ?? defaultOptimizationSettings.priority,
         affinity,
-        ioPriority: parsed.optimizationSettings?.ioPriority ?? defaultOptimizationSettings.ioPriority
+        ioPriority: parsed.optimizationSettings?.ioPriority ?? defaultOptimizationSettings.ioPriority,
+        efficiencyMode: parsed.optimizationSettings?.efficiencyMode ?? defaultOptimizationSettings.efficiencyMode
       },
       appSettings: {
         autoStart: parsed.appSettings?.autoStart ?? defaultAppSettings.autoStart,
@@ -130,7 +133,8 @@ export async function updateConfig(partial: Partial<AppConfig>): Promise<void> {
       enabledProcesses: partial.optimizationSettings?.enabledProcesses ?? current.optimizationSettings!.enabledProcesses,
       priority: partial.optimizationSettings?.priority ?? current.optimizationSettings!.priority,
       affinity: partial.optimizationSettings?.affinity ?? current.optimizationSettings!.affinity,
-      ioPriority: partial.optimizationSettings?.ioPriority ?? current.optimizationSettings!.ioPriority ?? 'VeryLow'
+      ioPriority: partial.optimizationSettings?.ioPriority ?? current.optimizationSettings!.ioPriority ?? 'VeryLow',
+      efficiencyMode: partial.optimizationSettings?.efficiencyMode ?? current.optimizationSettings!.efficiencyMode ?? true
     },
     appSettings: {
       autoStart: partial.appSettings?.autoStart ?? current.appSettings!.autoStart,

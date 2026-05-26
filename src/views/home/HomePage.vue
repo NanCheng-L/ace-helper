@@ -14,7 +14,7 @@ const props = defineProps<{
   checkedCount: number
   enabledProcesses: ProcessListItem[]
   processStates: Record<string, ProcessData['state']>
-  processDetails: Record<string, { lastUpdated: string; priority?: string; affinity?: string; coreCount?: number; ioPriority?: string }>
+  processDetails: Record<string, { lastUpdated: string; priority?: string; affinity?: string; coreCount?: number; ioPriority?: string; efficiencyMode?: boolean }>
   detailOpenStates: Record<string, boolean>
 }>()
 
@@ -40,7 +40,8 @@ const processes = computed<ProcessData[]>(() => {
       priority: props.processDetails[name]?.priority,
       affinity: props.processDetails[name]?.affinity,
       coreCount: props.processDetails[name]?.coreCount,
-      ioPriority: props.processDetails[name]?.ioPriority
+      ioPriority: props.processDetails[name]?.ioPriority,
+      efficiencyMode: props.processDetails[name]?.efficiencyMode
     }
   })
 })

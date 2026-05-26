@@ -18,7 +18,8 @@ export function useSettings() {
     enabledProcesses: [...DEFAULT_ENABLED_PROCESSES],
     priority: 'Idle',
     affinity: [(navigator.hardwareConcurrency || 8) - 1],
-    ioPriority: 'VeryLow'
+    ioPriority: 'VeryLow',
+    efficiencyMode: true
   })
   const isLoading = ref(false)
 
@@ -36,7 +37,8 @@ export function useSettings() {
           enabledProcesses: config.optimizationSettings.enabledProcesses || [...DEFAULT_ENABLED_PROCESSES],
           priority: config.optimizationSettings.priority || 'Idle',
           affinity,
-          ioPriority: config.optimizationSettings.ioPriority || 'VeryLow'
+          ioPriority: config.optimizationSettings.ioPriority || 'VeryLow',
+          efficiencyMode: config.optimizationSettings.efficiencyMode ?? true
         }
       }
     } catch (e) {
@@ -53,7 +55,8 @@ export function useSettings() {
         enabledProcesses: newSettings.enabledProcesses,
         priority: newSettings.priority,
         affinity: newSettings.affinity,
-        ioPriority: newSettings.ioPriority
+        ioPriority: newSettings.ioPriority,
+        efficiencyMode: newSettings.efficiencyMode
       })
       settings.value = newSettings
     } catch (e) {

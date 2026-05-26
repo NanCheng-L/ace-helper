@@ -68,6 +68,17 @@ export function useProcess() {
     })
   }
 
+  // 获取系统信息
+  // 返回系统版本和是否支持效率模式
+  const getSystemInfo = async (): Promise<{
+    platform: string
+    version: { major: number; minor: number; build: number }
+    efficiencyModeSupported: boolean
+    efficiencyModeNote?: string
+  }> => {
+    return await invoke('get_system_info')
+  }
+
   // 处理优化结果
   interface OptimizeResult {
     failedCount: number
@@ -107,7 +118,8 @@ export function useProcess() {
         priority: status.priority,
         affinity: status.affinity,
         coreCount: status.coreCount,
-        ioPriority: status.ioPriority
+        ioPriority: status.ioPriority,
+        efficiencyMode: status.efficiencyMode
       }
 
       let logMessage = ''
@@ -127,6 +139,7 @@ export function useProcess() {
           if (status.priority) statusText += `，优先级: ${getPriorityLabel(status.priority)}`
           if (status.affinity) statusText += `，CPU: ${status.affinity}`
           if (status.ioPriority) statusText += `，磁盘I/O: ${status.ioPriority}`
+          if (status.efficiencyMode !== undefined) statusText += `，效率模式: ${status.efficiencyMode ? '已开启' : '未开启'}`
           logMessage = `${p.name}：${statusText}`
         }
       } else if (status.state === 3) {
@@ -156,7 +169,8 @@ export function useProcess() {
         priority: status.priority,
         affinity: status.affinity,
         coreCount: status.coreCount,
-        ioPriority: status.ioPriority
+        ioPriority: status.ioPriority,
+        efficiencyMode: status.efficiencyMode
       }
 
       let frontendState: FrontendProcessState
@@ -186,6 +200,7 @@ export function useProcess() {
       if (status.priority) info += `，优先级: ${getPriorityLabel(status.priority)}`
       if (status.affinity) info += `，CPU: ${status.affinity}`
       if (status.ioPriority) info += `，磁盘I/O: ${status.ioPriority}`
+      if (status.efficiencyMode !== undefined) info += `，效率模式: ${status.efficiencyMode ? '已开启' : '未开启'}`
       if (status.pid) info += ` (PID: ${status.pid})`
 
       results.push({ name: status.name, info, isOnline })
@@ -204,6 +219,7 @@ export function useProcess() {
     toggleCard,
     optimizeProcesses,
     getProcessStatus,
+    getSystemInfo,
     processOptimizeResults,
     processInfoResults
   }

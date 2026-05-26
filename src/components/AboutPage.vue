@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { getVersion } from '@tauri-apps/api/app'
@@ -44,6 +44,17 @@ const checkUpdate = async () => {
   }
 }
 
+// 页面加载时自动检查更新
+onMounted(() => {
+  getVersion().then(v => {
+    appVersion.value = v
+    // 延迟一下再检查更新，让页面先渲染完成
+    setTimeout(() => {
+      checkUpdate()
+    }, 500)
+  }).catch(() => {})
+})
+
 const doUpdate = async () => {
   if (updateStatus.value !== 'available' || !availableUpdate) return
   updateStatus.value = 'downloading'
@@ -80,9 +91,6 @@ const doUpdate = async () => {
   }
 }
 
-getVersion().then(v => {
-  appVersion.value = v
-}).catch(() => {})
 </script>
 
 <template>
