@@ -238,7 +238,8 @@ onMounted(async () => {
   try {
     const sysInfo = await getSystemInfo()
     console.log('[ACE Helper] 系统信息:', sysInfo)
-    console.log(`[ACE Helper] 系统: ${sysInfo.version.displayName} (Build ${sysInfo.version.build})`)
+    const displayName = sysInfo.version.build >= 22000 ? 'Windows 11' : 'Windows 10'
+    console.log(`[ACE Helper] 系统: ${displayName} (Build ${sysInfo.version.build})`)
     console.log(`[ACE Helper] 效率模式支持: ${sysInfo.efficiencyModeSupported ? '是' : '否'}`)
     if (sysInfo.efficiencyModeNote) {
       console.log(`[ACE Helper] 效率模式说明: ${sysInfo.efficiencyModeNote}`)
