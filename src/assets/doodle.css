@@ -249,6 +249,9 @@ body{
   transition: transform .12s ease, box-shadow .12s ease;
   user-select:none;
   display:flex; align-items:center; gap:8px;
+  flex-shrink:0;
+  text-align:center;
+  line-height:1.2;
 }
 .btn.secondary{ background: rgba(255,220,130,.7); }
 .btn.secondary:hover{ background: rgba(255,220,130,.9); }

@@ -19,7 +19,7 @@ import { loadConfig } from './utils/configStorage'
 const activeTab = ref('home')
 
 // 底部提示文字
-const metaText = ref('准备好了！点"一键优化"让 ACE 进程乖乖听话吧 ✨')
+const metaText = ref('点"一键优化"让 ACE 进程乖乖听话吧 ✨')
 
 // 使用 composables
 const { logs, addLog, initLog } = useLogs()
@@ -33,6 +33,7 @@ const {
   toggleCard,
   optimizeProcesses,
   getProcessStatus,
+  getSystemInfo,
   processOptimizeResults,
   processInfoResults
 } = useProcess()
@@ -86,7 +87,8 @@ const runOptimize = async (isAuto = false) => {
       processes: settings.value.enabledProcesses,
       priority: settings.value.priority,
       affinity: settings.value.affinity,
-      ioPriority: settings.value.ioPriority
+      ioPriority: settings.value.ioPriority,
+      efficiencyMode: settings.value.efficiencyMode
     })
 
     // 保存之前的状态用于判断
@@ -155,7 +157,8 @@ const getProcessInfo = async () => {
       processes: processesToCheck,
       priority: config.optimizationSettings?.priority || 'Idle',
       affinity: config.optimizationSettings?.affinity || [],
-      ioPriority: config.optimizationSettings?.ioPriority || 'VeryLow'
+      ioPriority: config.optimizationSettings?.ioPriority || 'VeryLow',
+      efficiencyMode: config.optimizationSettings?.efficiencyMode ?? true
     }
     
     const realStatuses = await getProcessStatus(processesToCheck, optimizationConfig)
@@ -216,8 +219,13 @@ const goToSettings = () => {
   handleSelect('settings')
 }
 
+// 跳转到关于页面
+const goToAbout = () => {
+  handleSelect('about')
+}
+
 // 初始化
-onMounted(() => {
+onMounted(async () => {
   listen('tray-open-settings', () => {
     handleSelect('settings')
   })
@@ -225,6 +233,19 @@ onMounted(() => {
   listen('tray-show-main', () => {
     handleSelect('home')
   })
+
+  // 获取并打印系统信息
+  try {
+    const sysInfo = await getSystemInfo()
+    console.log('[ACE Helper] 系统信息:', sysInfo)
+    console.log(`[ACE Helper] 系统: ${sysInfo.version.displayName} (Build ${sysInfo.version.build})`)
+    console.log(`[ACE Helper] 效率模式支持: ${sysInfo.efficiencyModeSupported ? '是' : '否'}`)
+    if (sysInfo.efficiencyModeNote) {
+      console.log(`[ACE Helper] 效率模式说明: ${sysInfo.efficiencyModeNote}`)
+    }
+  } catch (e) {
+    console.error('[ACE Helper] 获取系统信息失败:', e)
+  }
 
   loadSettings().then(async () => {
     await syncMinimizeToTray()
@@ -245,7 +266,7 @@ onMounted(() => {
 
 <template>
   <div class="app">
-    <Sidebar :active-tab="activeTab" @select="handleSelect" />
+    <Sidebar :active-tab="activeTab" @select="handleSelect" @go-to-about="goToAbout" />
 
     <main class="main">
       <!-- 首页 -->

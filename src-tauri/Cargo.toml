@@ -1,6 +1,6 @@
 [package]
 name = "ace-helper"
-version = "0.2.0"
+version = "0.3.0"
 description = "ACE 小助手 - 可爱又实用的 ACE 进程优化工具"
 authors = ["NanCheng"]
 license = "MIT"
@@ -30,5 +30,5 @@ tauri-plugin-fs = "2"
 tauri-plugin-notification = "2"
 sysinfo = "0.30"
 chrono = "0.4"
-winapi = { version = "0.3", features = ["processthreadsapi", "winbase", "handleapi", "securitybaseapi", "winnt"] }
+winapi = { version = "0.3", features = ["processthreadsapi", "winbase", "handleapi", "securitybaseapi", "winnt", "errhandlingapi", "libloaderapi"] }
 libc = "0.2"

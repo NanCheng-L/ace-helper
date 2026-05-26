@@ -18,6 +18,7 @@ export interface RealProcessStatus {
   coreCount?: number
   ioPriority?: string
   ioPriorityKey?: string
+  efficiencyMode?: boolean
 }
 
 // 进程数据（用于 ProcessCard 组件）
@@ -32,6 +33,7 @@ export interface ProcessData {
   affinity?: string
   coreCount?: number
   ioPriority?: string
+  efficiencyMode?: boolean
 }
 
 // 进程列表项
@@ -46,6 +48,7 @@ export interface OptimizationConfig {
   priority: string
   affinity: number[]
   ioPriority: string
+  efficiencyMode: boolean
 }
 
 // 设置状态
@@ -54,6 +57,7 @@ export interface SettingsState {
   priority: string
   affinity: number[]
   ioPriority: string
+  efficiencyMode: boolean
 }
 
 // 进程详情
@@ -63,4 +67,5 @@ export interface ProcessDetail {
   affinity?: string
   coreCount?: number
   ioPriority?: string
+  efficiencyMode?: boolean
 }

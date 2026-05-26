@@ -4,7 +4,10 @@ import { PRIORITY_OPTIONS } from '../config/priority'
 import { IO_PRIORITY_OPTIONS } from '../config/ioPriority'
 import { ToolsIcon, RotateIcon, SaveIcon, CheckIcon, ShieldIcon, PawIcon, TrayIcon, AppIcon, ZapIcon, CpuIcon, HardDriveIcon } from './icons'
 import { loadConfig, updateOptimizationSettings } from '../utils/configStorage'
+import { useProcess } from '../composables/useProcess'
 import type { Component } from 'vue'
+
+const { getSystemInfo } = useProcess()
 
 const emit = defineEmits<{
   (e: 'saved'): void
@@ -34,17 +37,32 @@ interface Settings {
   priority: string
   affinity: number[]
   ioPriority: string
+  efficiencyMode: boolean
 }
 
 const settings = ref<Settings>({
   enabledProcesses: [...DEFAULT_ENABLED_PROCESSES],
   priority: 'Idle',
   affinity: [...defaultAffinity],
-  ioPriority: 'VeryLow'
+  ioPriority: 'VeryLow',
+  efficiencyMode: true
 })
 
 const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 const resetStatus = ref<'idle' | 'reset'>('idle')
+
+// 系统信息
+const systemInfo = ref<{
+  platform: string
+  version: { major: number; minor: number; build: number }
+  efficiencyModeSupported: boolean
+  efficiencyModeNote?: string
+} | null>(null)
+
+// 是否支持效率模式
+const isEfficiencyModeSupported = computed(() => {
+  return systemInfo.value?.efficiencyModeSupported ?? false
+})
 
 const cpuCores = computed(() => {
   return Array.from({ length: cpuCoreCount.value }, (_, i) => ({
@@ -64,11 +82,13 @@ const loadSettings = async () => {
         ? config.optimizationSettings.affinity
         : [...defaultAffinity]
       settings.value.ioPriority = config.optimizationSettings.ioPriority || 'VeryLow'
+      settings.value.efficiencyMode = config.optimizationSettings.efficiencyMode ?? true
     } else {
       settings.value.enabledProcesses = [...DEFAULT_ENABLED_PROCESSES]
       settings.value.priority = 'Idle'
       settings.value.affinity = [...defaultAffinity]
       settings.value.ioPriority = 'VeryLow'
+      settings.value.efficiencyMode = true
     }
   } catch (e) {
     console.error('[ACE Helper] 加载设置失败:', e)
@@ -80,12 +100,14 @@ const resetSettings = async () => {
   settings.value.priority = 'Idle'
   settings.value.affinity = [...defaultAffinity]
   settings.value.ioPriority = 'VeryLow'
+  settings.value.efficiencyMode = true
   try {
     await updateOptimizationSettings({
       enabledProcesses: [...DEFAULT_ENABLED_PROCESSES],
       priority: 'Idle',
       affinity: [...defaultAffinity],
-      ioPriority: 'VeryLow'
+      ioPriority: 'VeryLow',
+      efficiencyMode: true
     })
   } catch (e) {
     console.error('[ACE Helper] 重置设置失败:', e)
@@ -104,7 +126,8 @@ const saveSettings = async () => {
       enabledProcesses: settings.value.enabledProcesses,
       priority: settings.value.priority,
       affinity: settings.value.affinity,
-      ioPriority: settings.value.ioPriority
+      ioPriority: settings.value.ioPriority,
+      efficiencyMode: settings.value.efficiencyMode
     })
     console.log('[ACE Helper] 设置已保存:', settings.value)
     saveStatus.value = 'saved'
@@ -160,7 +183,15 @@ const toggleAllCores = () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 获取系统信息
+  try {
+    systemInfo.value = await getSystemInfo()
+    console.log('[ACE Helper] 系统信息:', systemInfo.value)
+  } catch (e) {
+    console.error('[ACE Helper] 获取系统信息失败:', e)
+  }
+  
   loadSettings()
 })
 </script>
@@ -327,6 +358,42 @@ onMounted(() => {
           <span class="checkbox-custom"></span>
           <span class="core-label">{{ core.label }}</span>
         </label>
+      </div>
+    </section>
+
+    <!-- 效率模式设置 -->
+    <section v-if="isEfficiencyModeSupported" class="settings-section">
+      <div class="section-title">
+        <ZapIcon :size="18" />
+        <span>效率模式</span>
+      </div>
+      <p class="section-desc">启用后进程将被标记为效率模式，系统会降低其资源优先级（Windows 11 22H2+）</p>
+      <div class="efficiency-mode-toggle">
+        <label class="toggle-item" :class="{ selected: settings.efficiencyMode }">
+          <input
+            type="checkbox"
+            :checked="settings.efficiencyMode"
+            @change="settings.efficiencyMode = !settings.efficiencyMode"
+          />
+          <span class="toggle-custom"></span>
+          <span class="toggle-info">
+            <span class="toggle-label">{{ settings.efficiencyMode ? '已开启' : '未开启' }}</span>
+            <span class="toggle-desc">{{ settings.efficiencyMode ? '进程将使用效率模式运行' : '进程将使用正常模式运行' }}</span>
+          </span>
+        </label>
+      </div>
+    </section>
+    
+    <!-- Windows 10 不支持效率模式提示 -->
+    <section v-else class="settings-section disabled">
+      <div class="section-title">
+        <ZapIcon :size="18" />
+        <span>效率模式</span>
+      </div>
+      <div class="efficiency-mode-unsupported">
+        <p class="unsupported-text">⚠️ 当前 Windows 版本不支持效率模式</p>
+        <p class="unsupported-desc">效率模式需要 Windows 11 或 Windows 10 21H2+</p>
+        <p class="unsupported-tip">其他优化功能（优先级、CPU 亲和性、磁盘 I/O）仍可正常使用</p>
       </div>
     </section>
 
@@ -768,6 +835,84 @@ onMounted(() => {
 .core-label {
   font-weight: 700;
   font-size: 12px;
+}
+
+.efficiency-mode-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 3px solid var(--line);
+  border-radius: 14px 12px 16px 14px;
+  background: rgba(255,255,255,.5);
+  cursor: pointer;
+  transition: transform .1s ease, background .1s ease;
+}
+
+.toggle-item:hover {
+  background: rgba(255,255,255,.8);
+}
+
+.toggle-item.selected {
+  background: rgba(185,251,192,.4);
+}
+
+.toggle-item input[type="checkbox"] {
+  display: none;
+}
+
+.toggle-custom {
+  width: 44px;
+  height: 24px;
+  border: 3px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.8);
+  position: relative;
+  flex-shrink: 0;
+  transition: background .2s ease;
+}
+
+.toggle-custom::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  background: var(--ink);
+  border-radius: 50%;
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  transition: transform .2s ease;
+}
+
+.toggle-item.selected .toggle-custom {
+  background: rgba(185,251,192,1);
+}
+
+.toggle-item.selected .toggle-custom::after {
+  transform: translateX(20px);
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-label {
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.toggle-desc {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .settings-footer {

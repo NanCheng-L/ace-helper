@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { HomeIcon, ToolsIcon, SettingsIcon, HelpIcon } from './icons'
+import UpdateNotification from './UpdateNotification.vue'
 
 defineProps<{
   activeTab: string
@@ -7,6 +8,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'select', id: string): void
+  (e: 'goToAbout'): void
 }>()
 
 const tabs = [
@@ -54,5 +56,7 @@ const tabs = [
     <div class="char-decorations" aria-hidden="true">
       <img class="char-img char-pink" src="/src/assets/char-pink.png" alt="" />
     </div>
+
+    <UpdateNotification @go-to-about="emit('goToAbout')" />
   </aside>
 </template>
