@@ -118,7 +118,7 @@ const handleClick = () => {
       <div v-if="process.affinity" class="kv"><div>CPU 亲和性</div><span>CPU {{ process.affinity }}</span></div>
       <div v-if="process.coreCount" class="kv"><div>使用核心数</div><span>{{ process.coreCount }} 个核心</span></div>
       <div v-if="process.ioPriority" class="kv"><div>磁盘 I/O 优先级</div><span>{{ getIoPriorityLabel(process.ioPriority) }}</span></div>
-      <div v-if="process.efficiencyMode !== undefined" class="kv"><div>效率模式</div><span>{{ process.efficiencyMode ? '已开启' : '未开启' }}</span></div>
+      <div v-if="process.state !== 'offline' && process.efficiencyMode !== undefined" class="kv"><div>效率模式</div><span>{{ process.efficiencyMode ? '已开启' : '未开启' }}</span></div>
     </div>
     <svg class="sparkle" viewBox="0 0 64 64" aria-hidden="true">
       <path d="M32 5l4.5 14.8L52 24l-15.5 4.2L32 43 27.5 28.2 12 24l15.5-4.2L32 5z" fill="rgba(255,230,109,.95)" stroke="rgba(43,43,43,.75)" stroke-width="3" stroke-linejoin="round"/>

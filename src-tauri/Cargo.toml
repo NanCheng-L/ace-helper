@@ -1,6 +1,6 @@
 [package]
 name = "ace-helper"
-version = "0.3.0"
+version = "0.3.1"
 description = "ACE 小助手 - 可爱又实用的 ACE 进程优化工具"
 authors = ["NanCheng"]
 license = "MIT"
