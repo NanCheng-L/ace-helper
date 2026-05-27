@@ -20,6 +20,8 @@ use std::sync::{Mutex, Once};
 use std::ptr;
 use std::process::Command;
 use std::os::windows::process::CommandExt;
+use std::ffi::OsStr;
+use std::os::windows::ffi::OsStrExt;
 
 // Windows 效率模式相关常量
 const PROCESS_INFORMATION_CLASS_POWER_THROTTLING: u32 = 4;
@@ -1048,11 +1050,69 @@ fn optimize_processes(config: OptimizationConfig) -> Vec<ProcessStatus> {
   results
 }
 
+// 检查是否已有实例在运行，如果是则激活已有窗口并退出
+// 使用 Windows 全局命名互斥锁实现
+fn ensure_single_instance() {
+  unsafe {
+    extern "system" {
+      fn CreateMutexW(
+        lpMutexAttributes: *mut winapi::ctypes::c_void,
+        bInitialOwner: i32,
+        lpName: *const u16,
+      ) -> *mut winapi::ctypes::c_void;
+      fn GetLastError() -> u32;
+      fn FindWindowW(
+        lpClassName: *const u16,
+        lpWindowName: *const u16,
+      ) -> *mut winapi::ctypes::c_void;
+      fn ShowWindow(hWnd: *mut winapi::ctypes::c_void, nCmdShow: i32) -> i32;
+      fn SetForegroundWindow(hWnd: *mut winapi::ctypes::c_void) -> i32;
+      fn IsIconic(hWnd: *mut winapi::ctypes::c_void) -> i32;
+    }
+
+    const ERROR_ALREADY_EXISTS: u32 = 183;
+    const SW_RESTORE: i32 = 9;
+    const SW_SHOW: i32 = 5;
+
+    // 创建全局命名互斥锁
+    let mutex_name: Vec<u16> = OsStr::new("Global\\ace-helper-single-instance")
+      .encode_wide()
+      .chain(std::iter::once(0))
+      .collect();
+    let _mutex = CreateMutexW(ptr::null_mut(), 1, mutex_name.as_ptr());
+
+    if GetLastError() == ERROR_ALREADY_EXISTS {
+      // 已有实例在运行，查找并激活它的窗口
+      let window_title: Vec<u16> = OsStr::new("ACE 小助手")
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+      let hwnd = FindWindowW(ptr::null(), window_title.as_ptr());
+
+      if !hwnd.is_null() {
+        // 如果窗口最小化则恢复
+        if IsIconic(hwnd) != 0 {
+          ShowWindow(hwnd, SW_RESTORE);
+        } else {
+          ShowWindow(hwnd, SW_SHOW);
+        }
+        SetForegroundWindow(hwnd);
+      }
+
+      std::process::exit(0);
+    }
+    // 互斥锁由 _mutex 持有，进程退出时自动释放
+  }
+}
+
 // =========================================================
 // Tauri 应用入口函数
 // =========================================================
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  // 确保只有一个实例在运行
+  ensure_single_instance();
+
   tauri::Builder::default()
     // 注册 Tauri 命令，前端才能调用
     // 注意：必须在这里列出所有 #[tauri::command] 标记的函数
