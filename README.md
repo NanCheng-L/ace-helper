@@ -4,7 +4,8 @@
 
 ACE 小助手是一款专为 ACE 进程优化的 Windows 桌面工具，帮助你轻松管理和优化 ACE 相关进程。
 
-<img width="1251" height="976" alt="image" src="https://github.com/user-attachments/assets/998d0b35-1338-4f4f-84d5-2188beb6af40" />
+<img width="1250" height="976" alt="9f4850d5-c98a-4a90-adcb-94461f9989c4" src="https://github.com/user-attachments/assets/b04779e0-91e7-49a3-bcb5-19b607a65c2e" />
+
 
 
 ## ✨ 功能特性
