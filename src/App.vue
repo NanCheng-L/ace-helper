@@ -224,6 +224,22 @@ const goToAbout = () => {
   handleSelect('about')
 }
 
+// 同步开机自启动状态：如果 config 说关闭但注册表还残留，强制清理
+const syncAutoStartState = async () => {
+  try {
+    const config = await loadConfig()
+    const autoStart = config.appSettings?.autoStart ?? true
+    const { isEnabled, disable } = await import('@tauri-apps/plugin-autostart')
+    const enabled = await isEnabled()
+    if (!autoStart && enabled) {
+      await disable()
+      console.log('[ACE Helper] 已同步清除开机自启动注册表项')
+    }
+  } catch (e) {
+    console.log('[ACE Helper] 同步自启动状态跳过:', e)
+  }
+}
+
 // 初始化
 onMounted(async () => {
   listen('tray-open-settings', () => {
@@ -247,6 +263,9 @@ onMounted(async () => {
   } catch (e) {
     console.error('[ACE Helper] 获取系统信息失败:', e)
   }
+
+  // 启动时同步自启动状态，防止 disable 失效导致关不掉
+  syncAutoStartState()
 
   loadSettings().then(async () => {
     await syncMinimizeToTray()
