@@ -55,7 +55,7 @@ const saveSettings = async () => {
       } catch {}
     }
 
-    // 尝试设置开机自启动
+    // 设置开机自启动
     try {
       const { isEnabled, enable, disable } = await import('@tauri-apps/plugin-autostart')
       const enabled = await isEnabled()
@@ -66,7 +66,7 @@ const saveSettings = async () => {
         await disable()
       }
     } catch (e) {
-      console.log('[ACE Helper] 自动启动功能暂不可用:', e)
+      console.error('[ACE Helper] 设置开机自启动失败:', e)
     }
 
     invoke('set_minimize_to_tray', { value: settings.value.minimizeToTray }).catch(() => {})

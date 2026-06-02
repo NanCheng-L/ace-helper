@@ -89,26 +89,8 @@ fn main() {
         )
       };
 
-      if result > 32 {
-        // UAC 提权请求已发送，新进程正在以管理员身份启动
-        std::process::exit(0);
-      } else {
-        // ShellExecuteW 失败（UAC 被拒、安全策略拦截等）
-        let title: Vec<u16> = OsStr::new("ACE 小助手")
-          .encode_wide()
-          .chain(std::iter::once(0))
-          .collect();
-        let msg: Vec<u16> = OsStr::new(
-          "需要管理员权限才能运行此程序。\n\n请右键点击程序图标，选择「以管理员身份运行」。",
-        )
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-        unsafe {
-          MessageBoxW(std::ptr::null_mut(), msg.as_ptr(), title.as_ptr(), 0x10);
-        }
-        std::process::exit(1);
-      }
+      // UAC 被拒绝或安全策略拦截，静默退出
+      std::process::exit(0);
     }
   }
 
