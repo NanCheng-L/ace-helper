@@ -23,12 +23,6 @@ fn main() {
         lpName: *const u16,
       ) -> *mut std::ffi::c_void;
       fn GetLastError() -> u32;
-      fn MessageBoxW(
-        hWnd: *mut std::ffi::c_void,
-        lpText: *const u16,
-        lpCaption: *const u16,
-        uType: u32,
-      ) -> i32;
     }
 
     const ERROR_ALREADY_EXISTS: u32 = 183;
@@ -78,7 +72,7 @@ fn main() {
         .chain(std::iter::once(0))
         .collect();
 
-      let result = unsafe {
+      unsafe {
         ShellExecuteW(
           std::ptr::null_mut(),
           op.as_ptr(),

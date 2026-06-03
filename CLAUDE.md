@@ -71,6 +71,8 @@ vue-tsc -b
 - `tauri-plugin-notification` — 系统通知
 - `tauri-plugin-fs` — 文件系统访问
 
+**踩坑警示**：Tauri 2.0 插件必须在 `src-tauri/capabilities/default.json` 的 `permissions` 数组中显式声明权限，否则运行时会报 `xxx not allowed` 错误。每个插件至少需要 `插件名:default`，具体命令还需单独声明（如 `autostart:allow-is-enabled`）。
+
 ## 注意事项
 
 - Release 模式下 `main.rs` 会自动请求管理员权限（通过 `ShellExecuteW` + `runas`），Debug 模式跳过
